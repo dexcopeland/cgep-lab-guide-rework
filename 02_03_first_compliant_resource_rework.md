@@ -465,6 +465,8 @@ These three Terraform commands are the core loop you'll run for the rest of the 
 - `terraform plan` works out exactly what it would create, without creating anything. The `-out=tfplan` saves that plan to a file.
 - `terraform apply` builds it. Passing the saved `tfplan` means it builds precisely what you just reviewed, no surprises.
 
+Two of those steps need input from you. Look back at `variables.tf`: `project_name` and `environment` have no `default`, on purpose. They're the values stitched into your bucket names and compliance tags, so Terraform makes you choose them.
+
 If your sandbox uses AWS SSO, export your credentials first so Terraform's AWS provider can use them (the provider doesn't always read SSO config the way the CLI does):
 
 ```bash
@@ -477,6 +479,17 @@ Then run the loop:
 terraform init
 terraform validate
 terraform plan -out=tfplan
+terraform apply -auto-approve tfplan
+```
+
+> **Heads up: `plan` will stop and ask you for two values.** Because `project_name` and `environment` have no defaults, Terraform prompts for each one by name before it finishes the plan. Read the label on each prompt and type the matching value — `cgep-lab` for `project_name`, `dev` for `environment`. Don't go by order; Terraform asks by what's missing, not by how you defined them. `environment` is validated, so it has to be `dev`, `staging`, or `prod`. Those two values are exactly what make your bucket come out as `cgep-lab-dev-data-<random>`, the expected output below. (`apply` reuses the saved `tfplan`, so it won't ask again.)
+
+If you'd rather not be prompted, pass the same values as flags instead and Terraform runs straight through:
+
+```bash
+terraform init
+terraform validate
+terraform plan -out=tfplan -var="project_name=cgep-lab" -var="environment=dev"
 terraform apply -auto-approve tfplan
 ```
 
@@ -594,6 +607,14 @@ aws s3api list-object-versions --profile <your-sandbox> --bucket "$LOG_BUCKET" \
   | aws s3api delete-objects --profile <your-sandbox> --bucket "$LOG_BUCKET" --delete file:///dev/stdin || true
 
 terraform destroy -auto-approve
+```
+
+> **Heads up: `destroy` will ask you for those two values again.** It re-reads your `.tf` files to work out what to tear down, so just like `plan` it prompts for `project_name` and `environment` (no saved plan to reuse this time). Enter the same values you used to build — `cgep-lab` and `dev` — reading each prompt label rather than going by order.
+
+If you'd rather not be prompted, pass them as flags instead:
+
+```bash
+terraform destroy -auto-approve -var="project_name=cgep-lab" -var="environment=dev"
 ```
 
 If you destroy within a few minutes of applying, the log bucket is probably still empty and the `delete-objects` call simply does nothing.
