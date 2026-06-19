@@ -179,6 +179,8 @@ This step matters more than it looks. When Terraform runs, it creates files you 
 
 - `terraform.tfstate` and its backups: Terraform's record of what it built. It can contain sensitive values, and it's specific to your machine.
 - The `.terraform/` directory: hundreds of megabytes of downloaded provider plugins. No one needs your copy.
+- `.terraform.lock.hcl`: the provider dependency lock. It's useful in a long-lived production repo, but it's not part of this course's submission, so we keep it out to match the checklist exactly.
+- `tfplan`: the saved binary plan from `terraform plan -out=tfplan`. It's scratch input for `apply`, not an artifact a reviewer wants.
 - `*.tfvars`: where people often put secrets.
 
 A `.gitignore` file tells Git to skip these. Create it at the repo root:
@@ -187,9 +189,12 @@ A `.gitignore` file tells Git to skip these. Create it at the repo root:
 cat > .gitignore << 'EOF'
 # Terraform working files (never publish these)
 .terraform/
+.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfvars
+tfplan
+*.tfplan
 crash.log
 
 # OS noise
@@ -555,7 +560,10 @@ If any of the three comes back missing or wrong, the bucket isn't compliant. Fix
 ## Commit your work
 
 ```bash
-# from the repo root
+# The verify step left you inside the Terraform folder. Climb back to the repo root first:
+cd ../../..
+
+# You're now in cgep-labs/. Stage this lab's code and evidence, then push:
 git add terraform/primitives/compliant-s3 evidence/lab-2-3
 git commit -m "Lab 2.3: compliant S3 primitive + evidence"
 git push
@@ -564,6 +572,13 @@ git push
 ## Cleanup: tear down the live resources
 
 With your evidence captured and pushed, the buckets have done their job. Destroy them now so they don't linger in your account. This only removes the live AWS resources; your committed evidence files stay in the repo as proof they once existed exactly as configured.
+
+**First, get back into the Terraform workspace.** The commit step above left you at the repo root, but `terraform destroy` only works where the state lives. Move into the lab folder before running anything below:
+
+```bash
+# from the repo root (cgep-labs)
+cd terraform/primitives/compliant-s3
+```
 
 Versioned buckets won't delete while they still hold object versions, so empty them first, then destroy:
 
@@ -593,7 +608,7 @@ Your `cgep-labs` repo on GitHub should now contain:
 - [ ] `terraform/primitives/compliant-s3/README.md`, one paragraph: "this module enforces SC-28, AU-3, AU-6, CM-6, AC-3 on a single S3 bucket."
 - [ ] `evidence/lab-2-3/plan.json`
 - [ ] `evidence/lab-2-3/state.json`
-- [ ] No `.terraform/` directory or `*.tfstate` files committed (your `.gitignore` handles this; double-check with `git status`).
+- [ ] No `.terraform/` directory, `.terraform.lock.hcl`, `tfplan`, or `*.tfstate` files committed (your `.gitignore` handles this; double-check with `git status`).
 - [ ] Live AWS resources destroyed once your evidence was committed (`terraform destroy` ran clean). Your committed evidence stays in the repo regardless.
 
 ## Troubleshooting
