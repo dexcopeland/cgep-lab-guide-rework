@@ -45,11 +45,41 @@ The workflow needs to read your AWS account to run a plan. The old way was to pa
 
 OIDC replaces that with something better. GitHub and AWS establish a trust relationship once. Then, on each run, GitHub hands AWS a short-lived token that proves "this is a workflow from *this specific repository*," and AWS gives back temporary credentials that expire when the job ends. No secret is stored, nothing outlives the run, and the trust is scoped to one repo. You set this up once and forget it.
 
+## Where these files live
+
+```
+cgep-labs/
+├── terraform/primitives/oidc-trust/
+│   └── main.tf                         ← OIDC provider + IAM role
+├── .github/workflows/
+│   └── grc-gate.yml                    ← the CI pipeline
+└── evidence/lab-4-3/                   ← filled by the workflow artifact
+    ├── plan.json
+    ├── plan.txt
+    ├── conftest-results.json
+    └── tfsec.sarif
+```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
+
+```bash
+# from the repo root
+mkdir -p terraform/primitives/oidc-trust .github/workflows evidence/lab-4-3
+
+touch \
+  terraform/primitives/oidc-trust/main.tf \
+  .github/workflows/grc-gate.yml
+
+find terraform/primitives/oidc-trust .github/workflows evidence/lab-4-3 -type f | sort
+```
+
 ## Step-by-step walkthrough
 
 ### Step 1: Create the OIDC trust in AWS
 
-This small Terraform creates the OIDC provider and a read-only role bound to your repository. Put it in a primitive, since you apply it once. Create `terraform/primitives/oidc-trust/main.tf`:
+This small Terraform creates the OIDC provider and a read-only role bound to your repository. Put it in a primitive, since you apply it once. Open **`terraform/primitives/oidc-trust/main.tf`** from the scaffold and paste:
 
 ```hcl
 # terraform/primitives/oidc-trust/main.tf
@@ -132,7 +162,7 @@ gh variable set AWS_ROLE_ARN \
 
 ### Step 3: Write the workflow
 
-This is the heart of the lab. Create `.github/workflows/grc-gate.yml`. The paths here point at your `cgep-labs` layout (the compliant-s3 workspace, the root-level `policies/`, and a per-lab evidence folder).
+This is the heart of the lab. Open **`.github/workflows/grc-gate.yml`** from the scaffold and paste. The paths here point at your `cgep-labs` layout (the compliant-s3 workspace, the root-level `policies/`, and a per-lab evidence folder).
 
 ```yaml
 # .github/workflows/grc-gate.yml

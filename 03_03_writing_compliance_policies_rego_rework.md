@@ -72,20 +72,37 @@ cgep-labs/
 │       ├── ac3_no_public_test.rego
 │       └── cm6_required_tags_test.rego
 ├── terraform/primitives/policy-fixture/   ← plan-only test bed
+│   └── main.tf
 └── evidence/lab-3-3/
-    └── opa-test-results.json
+    └── opa-test-results.json              ← filled in when you capture evidence
 ```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
 
 ```bash
 # from the repo root
 mkdir -p policies/tests terraform/primitives/policy-fixture evidence/lab-3-3
+
+touch \
+  policies/sc28_encryption.rego \
+  policies/ac3_no_public.rego \
+  policies/cm6_required_tags.rego \
+  policies/README.md \
+  policies/tests/sc28_encryption_test.rego \
+  policies/tests/ac3_no_public_test.rego \
+  policies/tests/cm6_required_tags_test.rego \
+  terraform/primitives/policy-fixture/main.tf
+
+find policies terraform/primitives/policy-fixture evidence/lab-3-3 -type f | sort
 ```
 
 ## Step-by-step walkthrough
 
 ### Step 1: Build the test bed
 
-A policy needs something to check. This fixture has one compliant bucket and three broken ones, each broken in exactly one way, plus a firewall left wide open. Create `terraform/primitives/policy-fixture/main.tf`.
+A policy needs something to check. This fixture has one compliant bucket and three broken ones, each broken in exactly one way, plus a firewall left wide open. Open **`terraform/primitives/policy-fixture/main.tf`** from the scaffold and paste:
 
 > The original lab abbreviated the three non-compliant buckets as comments. They're written out in full here so the fixture actually plans.
 
@@ -196,6 +213,8 @@ You never apply. The policies work entirely off `plan.json`, which is why this l
 
 ### Step 2: SC-28, encryption at rest
 
+Open **`policies/sc28_encryption.rego`** and paste:
+
 ```rego
 # policies/sc28_encryption.rego
 # METADATA
@@ -250,7 +269,7 @@ Two details that confuse everyone the first time:
 
 ### Step 3: SC-28 tests
 
-Tests are how you trust a policy. Each one feeds in a hand-built input and asserts the rule does the right thing.
+Tests are how you trust a policy. Each one feeds in a hand-built input and asserts the rule does the right thing. Open **`policies/tests/sc28_encryption_test.rego`** and paste:
 
 ```rego
 # policies/tests/sc28_encryption_test.rego
@@ -291,7 +310,7 @@ The `with input as ...` swaps in your fake plan so the rule runs against it. One
 
 ### Step 4: AC-3, no public access
 
-Two checks in one file: buckets that aren't locked down, and firewalls that open management ports to the world.
+Two checks in one file: buckets that aren't locked down, and firewalls that open management ports to the world. Open **`policies/ac3_no_public.rego`** and paste:
 
 ```rego
 # policies/ac3_no_public.rego
@@ -362,6 +381,8 @@ The firewall rule reads like a sentence once you slow down: for an ingress firew
 
 ### Step 5: AC-3 tests
 
+Open **`policies/tests/ac3_no_public_test.rego`** and paste:
+
 ```rego
 # policies/tests/ac3_no_public_test.rego
 package compliance.ac3_test
@@ -397,7 +418,7 @@ test_open_management_port_fails if {
 
 ### Step 6: CM-6, required labels
 
-This one uses set subtraction. The required labels are a set, the resource's labels are a set, and whatever's left after subtracting is what's missing.
+This one uses set subtraction. The required labels are a set, the resource's labels are a set, and whatever's left after subtracting is what's missing. Open **`policies/cm6_required_tags.rego`** and paste:
 
 ```rego
 # policies/cm6_required_tags.rego
@@ -448,6 +469,8 @@ sort_array(s) := sorted if { sorted := sort([x | some x in s]) }
 ```
 
 > **Why `provided_labels` returns a set, not an array.** Rego's `-` (subtraction) only works on two sets. The comprehension `{k | resource.values.labels[k]}` builds a set of the label keys precisely so `required - provided` gives you the missing ones. Swap it for an array and you'll get a type error that's baffling until you know this.
+
+Open **`policies/tests/cm6_required_tags_test.rego`** and paste:
 
 ```rego
 # policies/tests/cm6_required_tags_test.rego
@@ -508,6 +531,8 @@ Add the missing pieces (an `encryption` block to `bad_no_cmek`, lock down `bad_p
 
 When you're done with the demo, you can leave the fixture in either state. The unit tests in `policies/tests/` already prove each policy against hand-built inputs; the fixture plan is for the live walkthrough, not for grading.
 
+Before you capture evidence, open **`policies/README.md`** (scaffolded empty) and list each policy file with its control ID, severity, and a one-line remediation — the same facts that appear in each `# METADATA` block.
+
 ## Capture your evidence
 
 ```bash
@@ -519,6 +544,7 @@ opa test --format=json policies/ > evidence/lab-3-3/opa-test-results.json
 ## Commit your work
 
 ```bash
+# from the repo root
 git add policies evidence/lab-3-3 terraform/primitives/policy-fixture
 git commit -m "Lab 3.3: Rego compliance policies + tests + evidence"
 git push
