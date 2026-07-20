@@ -51,10 +51,12 @@ opa test -v policies/    # expect 8/8 PASS
 You don't need the Lab 2.3 bucket to be live. `terraform plan` computes what *would* be created, so a plan works even with nothing deployed. It does need AWS credentials to check current state, but it applies nothing and costs nothing.
 
 ```bash
+# from the repo root
 cd terraform/primitives/compliant-s3
 eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
 terraform init
-terraform plan -out=tfplan
+# Pass the same vars Lab 2.3 used so plan doesn't prompt (CI can't type answers):
+terraform plan -out=tfplan -var="project_name=cgep-lab" -var="environment=dev"
 terraform show -json tfplan > plan.json
 cd ../../..
 ```
@@ -269,9 +271,12 @@ Now your Lab 2.3 plan has real AWS coverage. These passes mean something, unlike
 Copy your Lab 2.3 code to a throwaway folder, remove the encryption resource, regenerate the plan, and run the gate. (Don't commit this folder; it exists only to prove the gate works.)
 
 ```bash
+# from the repo root
 mkdir -p /tmp/broken && cp terraform/primitives/compliant-s3/*.tf /tmp/broken/
 # Edit /tmp/broken/main.tf: delete the aws_s3_bucket_server_side_encryption_configuration.primary resource
-( cd /tmp/broken && terraform init && terraform plan -out=tfplan && terraform show -json tfplan > plan.json )
+( cd /tmp/broken && terraform init \
+    && terraform plan -out=tfplan -var="project_name=cgep-lab" -var="environment=dev" \
+    && terraform show -json tfplan > plan.json )
 
 conftest test --policy policies --namespace compliance.sc28_aws /tmp/broken/plan.json
 ```
@@ -293,6 +298,8 @@ Your CI workflow in Lab 4.3 calls one script. Build it now so CI has something s
 ```bash
 #!/usr/bin/env bash
 # scripts/policy-gate.sh
+# Usage: policy-gate.sh --workspace <path> [--policy <dir>]
+# Requires a saved tfplan inside the workspace (from terraform plan -out=tfplan).
 set -euo pipefail
 
 POLICY_DIR="policies"
@@ -310,18 +317,27 @@ done
 [[ -z "$WORKSPACE" ]] && { echo "Usage: $0 --workspace <path>" >&2; exit 2; }
 mkdir -p "$EVIDENCE_DIR"
 
-( cd "$WORKSPACE" && terraform show -json tfplan > "$WORKSPACE/plan.json" )
+# Write plan.json next to tfplan. Use -chdir so a relative WORKSPACE path
+# doesn't get doubled after a cd (a common bash footgun).
+terraform -chdir="$WORKSPACE" show -json tfplan > "$WORKSPACE/plan.json"
 
 EXIT=0
 {
   echo "["
   FIRST=1
-  for ns in compliance.sc28_aws compliance.ac3_aws compliance.cm6_aws compliance.cm6 ; do
+  # AWS namespaces only. Including a GCP namespace here would "pass" with zero
+  # coverage on an AWS plan — the exact empty-pass lesson from Step 3.
+  for ns in compliance.sc28_aws compliance.ac3_aws compliance.cm6_aws ; do
     [[ $FIRST -eq 1 ]] && FIRST=0 || printf ","
-    OUT=$(conftest test --policy "$POLICY_DIR" --namespace "$ns" --output=json "$WORKSPACE/plan.json" || true)
-    if echo "$OUT" | python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(0 if all(len(r.get("failures") or [])==0 for r in d) else 1)'; then : ; else EXIT=1 ; fi
-    echo "$OUT"
+    # Capture JSON even when conftest exits non-zero; use that exit code for the gate.
+    set +e
+    OUT=$(conftest test --policy "$POLICY_DIR" --namespace "$ns" --output=json "$WORKSPACE/plan.json")
+    STATUS=$?
+    set -e
+    [[ $STATUS -eq 0 ]] || EXIT=1
+    printf '%s' "$OUT"
   done
+  echo
   echo "]"
 } > "$EVIDENCE_DIR/conftest-results.json"
 
@@ -333,22 +349,24 @@ exit $EXIT
 
 Three choices in there are worth understanding, because you'll see the same patterns in every CI script you write:
 
-- `|| true` after each `conftest` call stops one namespace's failure from killing the script before the others run, so you collect *all* violations, not just the first.
+- Capturing `STATUS` after each `conftest` call stops one namespace's failure from killing the script before the others run, so you collect *all* violations, not just the first.
 - `--output=json` makes the result a machine-readable artifact CI can store as evidence.
-- The `python3` one-liner makes the pass/fail decision, because parsing JSON reliably in pure bash is more pain than it's worth.
+- Pass/fail uses Conftest's own exit code. No extra JSON parser (Python, `jq`, etc.) is required — Conftest already exits non-zero when a namespace has failures.
 
 Run it both ways to produce your evidence:
 
 ```bash
-# compliant: from the repo root, point at the Lab 2.3 workspace
+# from the repo root
+mkdir -p evidence/lab-3-4
+
+# compliant: point at the Lab 2.3 workspace (needs tfplan from Step 2)
 bash scripts/policy-gate.sh --workspace terraform/primitives/compliant-s3
 cp evidence/lab-3-4/conftest-results.json evidence/lab-3-4/conftest-pass.json
 
-# failing: point at the broken copy (after copying its tfplan in)
-cp /tmp/broken/tfplan terraform/primitives/compliant-s3/tfplan  # or rerun against a broken workspace
+# failing: point at the broken copy from Step 8 (it already has its own tfplan)
+bash scripts/policy-gate.sh --workspace /tmp/broken
+cp evidence/lab-3-4/conftest-results.json evidence/lab-3-4/conftest-fail.json
 ```
-
-(For the failing artifact, the simplest path is to run the gate against a workspace whose plan you've broken, then save the result as `conftest-fail.json`.)
 
 ## Verification
 

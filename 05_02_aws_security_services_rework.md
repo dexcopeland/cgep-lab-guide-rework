@@ -205,7 +205,8 @@ resource "aws_securityhub_standards_subscription" "fsbp" {
 If Security Hub is already enabled in the account, `apply` will fail with `ResourceConflictException`. Import the existing one instead of fighting it:
 
 ```bash
-terraform import aws_securityhub_account.this <ACCOUNT_ID>
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile <your-sandbox>)
+terraform import aws_securityhub_account.this "$ACCOUNT_ID"
 ```
 
 ### Step 3: AWS Config (optional, often blocked)
@@ -219,9 +220,30 @@ AccessDeniedException: ... not authorized to perform: config:PutConfigurationRec
 
 then Config is managed elsewhere in your org, and you should leave it out of this lab. Here's the elegant part: when Config is missing, Security Hub raises a CRITICAL finding titled "AWS Config should be enabled and use the service-linked role for resource recording." That finding *is* evidence. Your account is reporting on its own gap, in machine-readable form, without you writing a word. For a GRC engineer, a system that documents its own deficiencies is exactly the goal.
 
-### Step 4: Apply and wait
+### Step 4: Add outputs, then apply and wait
+
+Create `outputs.tf` so verify commands can pull names without copy-pasting:
+
+```hcl
+# outputs.tf
+output "trail_name" {
+  value       = aws_cloudtrail.mgmt.name
+  description = "CloudTrail name for verify commands."
+}
+
+output "trail_bucket" {
+  value       = aws_s3_bucket.trail.id
+  description = "S3 bucket receiving CloudTrail logs."
+}
+
+output "securityhub_account_id" {
+  value       = aws_securityhub_account.this.id
+  description = "Account ID Security Hub is enabled in (also the terraform import id)."
+}
+```
 
 ```bash
+# you should already be in terraform/baselines/aws from the mkdir above
 eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
 terraform init
 terraform apply -auto-approve
@@ -232,14 +254,17 @@ Then wait 10 to 20 minutes. Security Hub populates its first findings slowly, so
 ### Step 5: Verify
 
 ```bash
-aws cloudtrail get-trail-status --name cgep-lab-mgmt --region us-east-1 \
+TRAIL=$(terraform output -raw trail_name)
+
+aws cloudtrail get-trail-status --name "$TRAIL" --region us-east-1 \
+  --profile <your-sandbox> \
   --query '{IsLogging:IsLogging,LatestDeliveryTime:LatestDeliveryTime}'
 # Expect IsLogging: true
 
-aws securityhub describe-hub --region us-east-1 --query HubArn
+aws securityhub describe-hub --region us-east-1 --profile <your-sandbox> --query HubArn
 # Expect arn:aws:securityhub:us-east-1:ACCOUNT:hub/default
 
-aws securityhub get-findings --region us-east-1 --max-results 5 \
+aws securityhub get-findings --region us-east-1 --profile <your-sandbox> --max-results 5 \
   --query 'Findings[?Severity.Label==`CRITICAL`].{Title:Title,GeneratorId:GeneratorId}' \
   --output json
 ```
@@ -249,8 +274,9 @@ A freshly-deployed account typically shows somewhere between 1 and 50 findings w
 ### Step 6: Capture findings as evidence
 
 ```bash
+# still inside terraform/baselines/aws — climb to the repo root's evidence folder
 mkdir -p ../../../evidence/lab-5-2
-aws securityhub get-findings --region us-east-1 --max-results 50 \
+aws securityhub get-findings --region us-east-1 --profile <your-sandbox> --max-results 50 \
   > ../../../evidence/lab-5-2/security-hub-findings.json
 ```
 
@@ -297,7 +323,7 @@ The CloudTrail bucket holds the trail's own log objects; `force_destroy = true` 
 ## Troubleshooting
 
 - **`InsufficientS3BucketPolicyException` on CloudTrail.** The bucket policy is missing the `aws:SourceArn` condition. Both statements above include it; keep them if you adapt the policy.
-- **`ResourceConflictException: Account is already subscribed to Security Hub`.** Something enabled it first. `terraform import aws_securityhub_account.this <ACCOUNT_ID>` and re-apply.
+- **`ResourceConflictException: Account is already subscribed to Security Hub`.** Something enabled it first. Import with your account ID from `aws sts get-caller-identity` and re-apply.
 - **`explicit deny in a service control policy` for Config.** Your account is org-managed and Config is centralized. Leave Config out; the Security Hub "Config should be enabled" finding is your evidence of the gap.
 - **No findings after 30 minutes.** The first wave is batched. Confirm the subscriptions applied with `aws securityhub get-enabled-standards`.
 - **Config recorder name conflict.** Only one recorder per region. Delete the existing one before re-applying.
