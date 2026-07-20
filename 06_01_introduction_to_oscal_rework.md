@@ -226,9 +226,11 @@ Trestle fetches the NIST catalog, applies your selection, and writes out a *reso
 
 This is the part that makes OSCAL click. Take the `sc-28` requirement, follow its `links[rel=evidence].href` into the vault, and run the verify script from Lab 4.4:
 
+> The command below uses `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+
 ```bash
 # from the repo root; reuse VAULT/RUN_ID from Lab 4.4 if you still have them
-EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile <your-sandbox>
+EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile default
 ```
 
 When it prints `CHAIN INTACT`, you've just done what an assessor does: started from a control claim in a document, followed a link to a real artifact, and cryptographically confirmed the artifact is authentic and unaltered. Nobody had to log into a console, and you didn't have to be in the room. (If you're doing this lab standalone without a vault bundle handy, the authoring and validation in Steps 1 through 6 still stand on their own; this step is the live demonstration of the link resolving.)

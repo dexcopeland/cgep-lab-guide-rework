@@ -8,7 +8,7 @@ For the GRC folks, these three services are where "continuous monitoring" stops 
 
 If this is your first lab, set up [your tools](../getting-started/tools.md) and [your repo](../getting-started/repo-structure.md) first.
 
-You need an AWS account where you have admin or near-admin rights, and Terraform `>= 1.6`. Check whether Security Hub is already on before you start, so you don't disturb an existing setup: `aws securityhub describe-hub --profile <your-sandbox>`.
+You need an AWS account where you have admin or near-admin rights, and Terraform `>= 1.6`. Check whether Security Hub is already on before you start, so you don't disturb an existing setup: `aws securityhub describe-hub --profile default`. Commands in this lab use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
 
 This lab is self-contained: it deploys its own baseline and doesn't depend on any earlier lab's live resources.
 
@@ -224,7 +224,7 @@ resource "aws_securityhub_standards_subscription" "fsbp" {
 If Security Hub is already enabled in the account, `apply` will fail with `ResourceConflictException`. Import the existing one instead of fighting it:
 
 ```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile <your-sandbox>)
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile default)
 terraform import aws_securityhub_account.this "$ACCOUNT_ID"
 ```
 
@@ -263,7 +263,7 @@ output "securityhub_account_id" {
 
 ```bash
 # you should already be in terraform/baselines/aws from the mkdir above
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
+eval "$(aws configure export-credentials --profile default --format env)"
 terraform init
 terraform apply -auto-approve
 ```
@@ -276,14 +276,14 @@ Then wait 10 to 20 minutes. Security Hub populates its first findings slowly, so
 TRAIL=$(terraform output -raw trail_name)
 
 aws cloudtrail get-trail-status --name "$TRAIL" --region us-east-1 \
-  --profile <your-sandbox> \
+  --profile default \
   --query '{IsLogging:IsLogging,LatestDeliveryTime:LatestDeliveryTime}'
 # Expect IsLogging: true
 
-aws securityhub describe-hub --region us-east-1 --profile <your-sandbox> --query HubArn
+aws securityhub describe-hub --region us-east-1 --profile default --query HubArn
 # Expect arn:aws:securityhub:us-east-1:ACCOUNT:hub/default
 
-aws securityhub get-findings --region us-east-1 --profile <your-sandbox> --max-results 5 \
+aws securityhub get-findings --region us-east-1 --profile default --max-results 5 \
   --query 'Findings[?Severity.Label==`CRITICAL`].{Title:Title,GeneratorId:GeneratorId}' \
   --output json
 ```
@@ -295,7 +295,7 @@ A freshly-deployed account typically shows somewhere between 1 and 50 findings w
 ```bash
 # still inside terraform/baselines/aws — climb to the repo root's evidence folder
 mkdir -p ../../../evidence/lab-5-2
-aws securityhub get-findings --region us-east-1 --profile <your-sandbox> --max-results 50 \
+aws securityhub get-findings --region us-east-1 --profile default --max-results 50 \
   > ../../../evidence/lab-5-2/security-hub-findings.json
 ```
 

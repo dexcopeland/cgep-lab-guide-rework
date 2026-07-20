@@ -14,6 +14,8 @@ You need:
 - Your Lab 4.3 workflow (`grc-gate.yml`) committed and working.
 - The Lab 2.5 vault. On a fresh day it was destroyed, so redeploy it in Step 0 below.
 
+> Commands below use `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+
 > **Hashing tools differ by OS.** macOS ships `shasum -a 256`; Git Bash and Ubuntu (including GitHub Actions runners) ship `sha256sum`. The workflow and verify script below detect whichever is available, the same way Lab 2.5's `capture-evidence.sh` does.
 
 ## Time and cost
@@ -98,7 +100,7 @@ On a fresh day your Lab 2.5 vault is gone, so stand it back up and record its na
 ```bash
 # from the repo root
 cd terraform/primitives/evidence-vault
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
+eval "$(aws configure export-credentials --profile default --format env)"
 terraform init && terraform apply -auto-approve
 VAULT=$(terraform output -raw vault_name)
 cd ../../..
@@ -192,7 +194,7 @@ Now a violating PR still produces a signed, stored evidence bundle, and *then* t
 The Lab 4.3 role was read-only. Grant it a tight write scope on the vault and nothing else:
 
 ```bash
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
+eval "$(aws configure export-credentials --profile default --format env)"
 aws iam put-role-policy \
   --role-name cgep-grc-gate \
   --policy-name vault-write \
@@ -274,7 +276,7 @@ Commit the workflow changes, push, open a PR. The run produces signed bundles. G
 
 ```bash
 RUN_ID=$(gh run list --workflow=grc-gate.yml --limit 1 --json databaseId --jq '.[0].databaseId')
-EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile <your-sandbox>
+EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile default
 ```
 
 You're looking for, at the very end:
@@ -292,7 +294,7 @@ Pull a local copy of the receipt into your repo (the workflow also writes `evide
 ```bash
 mkdir -p evidence/lab-4-4
 aws s3 cp "s3://${VAULT}/runs/${RUN_ID}/receipt.json" evidence/lab-4-4/receipt.json \
-  --profile <your-sandbox>
+  --profile default
 ```
 
 ### Step 5: The tamper test
@@ -302,9 +304,9 @@ This is the demonstration the whole lab builds toward, so do it and watch it fai
 ```bash
 # reuse RUN_ID and VAULT from above
 BUNDLE_KEY=$(aws s3api list-objects-v2 --bucket "$VAULT" --prefix "runs/${RUN_ID}/" \
-  --query "Contents[?ends_with(Key, '.tar.gz')].Key | [0]" --output text --profile <your-sandbox>)
+  --query "Contents[?ends_with(Key, '.tar.gz')].Key | [0]" --output text --profile default)
 
-aws s3 cp "s3://${VAULT}/${BUNDLE_KEY}" /tmp/bundle.tar.gz --profile <your-sandbox>
+aws s3 cp "s3://${VAULT}/${BUNDLE_KEY}" /tmp/bundle.tar.gz --profile default
 echo "junk" >> /tmp/bundle.tar.gz
 if command -v sha256sum >/dev/null 2>&1; then sha256sum /tmp/bundle.tar.gz
 else shasum -a 256 /tmp/bundle.tar.gz; fi

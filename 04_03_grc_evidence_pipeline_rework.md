@@ -19,7 +19,7 @@ Two tools run *inside* the workflow on GitHub's servers, so you don't install th
 - **Conftest** (you already know it from Lab 3.4).
 - **tfsec**, a static scanner that flags risky Terraform. Note that tfsec is now in maintenance mode, folded into **Trivy** (`trivy config` is the supported successor, and the old check IDs carry over). The lab uses tfsec because it's small and pinnable; everything here works the same if you later switch the scan step to Trivy.
 
-You also need an AWS account where you can create an IAM role and an OIDC provider.
+You also need an AWS account where you can create an IAM role and an OIDC provider. Commands below use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
 
 ## Time and cost
 
@@ -131,7 +131,7 @@ Apply it. Substitute your GitHub org (or username) and the `cgep-labs` repo name
 ```bash
 # from the repo root
 cd terraform/primitives/oidc-trust
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
+eval "$(aws configure export-credentials --profile default --format env)"  # if you use SSO
 terraform init
 terraform apply -var=github_org=<your-github-org> -var=github_repo=cgep-labs
 ROLE_ARN=$(terraform output -raw role_arn)
@@ -141,7 +141,7 @@ cd ../../..
 If the account already has a GitHub OIDC provider (some other automation may have created one), Terraform will error on the duplicate. Import it instead of recreating:
 
 ```bash
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile <your-sandbox>)
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile default)
 terraform import aws_iam_openid_connect_provider.github \
   "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
 terraform apply -var=github_org=<your-github-org> -var=github_repo=cgep-labs
