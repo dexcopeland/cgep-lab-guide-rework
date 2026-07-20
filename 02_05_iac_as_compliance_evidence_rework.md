@@ -335,10 +335,15 @@ You never set that retention by hand. The bucket's default rule applied it autom
 This is the moment the whole lab is built around, so do it deliberately. Try to delete the object you just uploaded:
 
 ```bash
+# capture the current version's ID directly from S3, instead of copy-pasting it
+VERSION_ID=$(aws s3api list-object-versions --bucket "$VAULT" \
+  --prefix runs/test-001/bundle.tar.gz \
+  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile <your-sandbox>)
+
 aws s3api delete-object \
   --bucket "$VAULT" \
   --key runs/test-001/bundle.tar.gz \
-  --version-id "<base64-version-id>" \
+  --version-id "$VERSION_ID" \
   --profile <your-sandbox>
 ```
 
@@ -383,14 +388,21 @@ First, empty and destroy the vault. GOVERNANCE mode lets you bypass the lock to 
 ```bash
 cd terraform/primitives/evidence-vault
 
+# capture the current version's ID directly from S3, instead of copy-pasting it
+VERSION_ID=$(aws s3api list-object-versions --bucket "$VAULT" \
+  --prefix runs/test-001/bundle.tar.gz \
+  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile <your-sandbox>)
+
 aws s3api delete-object --bucket "$VAULT" --key runs/test-001/bundle.tar.gz \
-  --version-id "<base64-version-id>" --bypass-governance-retention --profile <your-sandbox>
+  --version-id "$VERSION_ID" --bypass-governance-retention --profile <your-sandbox>
 
 # remove any delete markers
-aws s3api list-object-versions --bucket "$VAULT" --output json --profile <your-sandbox> \
-  | python3 -c 'import sys,json; d=json.load(sys.stdin); items=[*d.get("Versions",[]),*d.get("DeleteMarkers",[])]; print(json.dumps({"Objects":[{"Key":o["Key"],"VersionId":o["VersionId"]} for o in items]}))' > /tmp/del.json
-aws s3api delete-objects --bucket "$VAULT" --delete file:///tmp/del.json \
-  --bypass-governance-retention --profile <your-sandbox> || true
+aws s3api list-object-versions --bucket "$VAULT" --profile <your-sandbox> \
+  --query "[Versions[],DeleteMarkers[]][].{Key:Key,VersionId:VersionId}" --output text \
+  | while read -r key version; do
+      aws s3api delete-object --bucket "$VAULT" --key "$key" \
+        --version-id "$version" --bypass-governance-retention --profile <your-sandbox>
+    done
 
 terraform destroy -auto-approve
 ```
@@ -402,8 +414,6 @@ cd ../compliant-s3
 # empty the buckets first (see Lab 2.3 cleanup), then:
 terraform destroy -auto-approve
 ```
-
-> The vault cleanup uses `file:///tmp/del.json`. On Windows Git Bash, if that path gets mangled, re-run that one command with `MSYS_NO_PATHCONV=1` in front.
 
 In COMPLIANCE mode none of this deletion would be possible; the vault would sit, with its objects, until every retention expired. For real production evidence, that's exactly what you want.
 
