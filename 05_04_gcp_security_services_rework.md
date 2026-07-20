@@ -331,6 +331,8 @@ gcloud iam service-accounts keys create /tmp/k.json \
 # Expect: FAILED_PRECONDITION
 ```
 
+Before you commit, open **`terraform/baselines/gcp/README.md`** (scaffolded empty) and note the "Data Access logs are off by default" lesson plus which Org Policy constraints you enforced.
+
 ## Commit your work
 
 ```bash

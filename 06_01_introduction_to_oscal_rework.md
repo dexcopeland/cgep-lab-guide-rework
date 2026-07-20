@@ -252,6 +252,9 @@ cp profiles/cge-p-minimum/profile.json ../oscal/profiles/cge-p-minimum.json
 
 cd ..   # back to cgep-labs (repo root)
 ls oscal/components oscal/profiles evidence/lab-6-1
+
+# Fill the scaffolded README: which module each component describes and where its evidence lives
+# Open oscal/README.md and write a short note, then:
 git add oscal evidence/lab-6-1 .gitignore
 git commit -m "Lab 6.1: OSCAL component definition + profile + validation"
 git push
