@@ -137,14 +137,25 @@ These aren't two different things. When you `git push`, your local folder become
 
 ## Create the structure
 
-Pick a home for your work (your Documents folder is fine) and build the skeleton. From your terminal:
+Pick a home for your work (your Documents folder is fine) and build the skeleton — including the empty files this lab will fill in. From your terminal:
 
 ```bash
-mkdir -p cgep-labs/terraform/primitives
-mkdir -p cgep-labs/terraform/modules
-mkdir -p cgep-labs/scripts
-mkdir -p cgep-labs/evidence
+mkdir -p cgep-labs
 cd cgep-labs
+
+# Repo-wide folders every later lab reuses
+mkdir -p terraform/primitives terraform/modules scripts evidence
+
+# This lab's empty files (matches the diagram below)
+mkdir -p terraform/primitives/compliant-s3 evidence/lab-2-3
+touch README.md .gitignore \
+  terraform/primitives/compliant-s3/main.tf \
+  terraform/primitives/compliant-s3/variables.tf \
+  terraform/primitives/compliant-s3/outputs.tf \
+  terraform/primitives/compliant-s3/README.md
+
+# Confirm the shape
+find terraform/primitives/compliant-s3 evidence/lab-2-3 -type f | sort
 ```
 
 Here's what you just created and what each folder is for:
@@ -158,14 +169,18 @@ cgep-labs/                        ← repository root. Everything lives under he
 ├── terraform/                    ← all your infrastructure-as-code
 │   ├── primitives/               ← standalone units you deploy directly
 │   │   └── compliant-s3/         ← THIS lab lives here
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       ├── outputs.tf
+│   │       └── README.md
 │   └── modules/                  ← reusable modules (Lab 2.4 fills this in)
 │
 ├── scripts/                      ← shared scripts (Lab 2.5 adds one here)
 │
 └── evidence/                     ← captured proof, one folder per lab
     └── lab-2-3/                  ← THIS lab's evidence lands here
-        ├── plan.json
-        └── state.json
+        ├── plan.json             ← filled in when you capture evidence
+        └── state.json            ← filled in when you capture evidence
 ```
 
 Two ideas are doing all the work in this layout, and they're worth saying out loud:
@@ -183,7 +198,7 @@ This step matters more than it looks. When Terraform runs, it creates files you 
 - `tfplan`: the saved binary plan from `terraform plan -out=tfplan`. It's scratch input for `apply`, not an artifact a reviewer wants.
 - `*.tfvars`: where people often put secrets.
 
-A `.gitignore` file tells Git to skip these. Create it at the repo root:
+A `.gitignore` file tells Git to skip these. Open the empty **`.gitignore`** at the repo root (created in the scaffold above) and paste this in, or overwrite it from the terminal:
 
 ```bash
 cat > .gitignore << 'EOF'
@@ -254,23 +269,24 @@ The `default_tags` block at the top is a small trick that pays off all course lo
 
 In production, you don't get to walk an auditor through your AWS console. They want proof that's hard to fake and easy to re-check: a file that came out of the system, that anyone can run the same command to reproduce. `terraform show -json` gives you exactly that. The bucket you build today is small. The habit of capturing its configuration as JSON is the whole point, and it's the thread that runs through every remaining lab.
 
-## Step 1: Create the lab folder
+## Step 1: Open the lab folder
 
-From the repo root:
+You already created the empty files in Part 2. Move into that folder so relative Terraform commands land in the right place:
 
 ```bash
-mkdir -p terraform/primitives/compliant-s3 && cd terraform/primitives/compliant-s3
-touch main.tf variables.tf outputs.tf README.md
+# from the repo root (cgep-labs)
+cd terraform/primitives/compliant-s3
+ls   # expect: main.tf  variables.tf  outputs.tf  README.md
 ```
 
 You're now sitting inside `terraform/primitives/compliant-s3/`, which is where this lab's `.tf` files live. The three `.tf` files split the work the way every Terraform project does: `main.tf` for the resources, `variables.tf` for the inputs, `outputs.tf` for the values you want back out.
 
 ## Step 2: Write the base bucket and tags
 
-Open `main.tf`. Start with the provider configuration. The `default_tags` block is what makes the four required compliance tags non-optional.
+Open **`terraform/primitives/compliant-s3/main.tf`** (the empty file from the scaffold). Start with the provider configuration. The `default_tags` block is what makes the four required compliance tags non-optional.
 
 ```hcl
-# main.tf
+# terraform/primitives/compliant-s3/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -311,10 +327,10 @@ resource "aws_s3_bucket" "primary" {
 
 The `random_id` deserves a note, because it prevents a very common first-day error. **S3 bucket names are globally unique across all of AWS**, not just your account. If you and three classmates all try to create `cgep-lab-dev-data`, only the first one wins and the rest get an error. The random suffix sidesteps that by tacking a few unique characters onto every name.
 
-Now `variables.tf`. These `validation` blocks are doing compliance work: they turn a typo into a clear failure at plan time, before anything is built, instead of a confusing error halfway through deployment.
+Now open **`terraform/primitives/compliant-s3/variables.tf`**. These `validation` blocks are doing compliance work: they turn a typo into a clear failure at plan time, before anything is built, instead of a confusing error halfway through deployment.
 
 ```hcl
-# variables.tf
+# terraform/primitives/compliant-s3/variables.tf
 variable "project_name" {
   type        = string
   description = "Short project identifier. Becomes part of bucket names and the Project tag."
@@ -342,10 +358,10 @@ variable "bucket_suffix" {
 
 ## Step 3: Add encryption, versioning, and the public access block
 
-Three resources, three controls. Append these to `main.tf`.
+Three resources, three controls. Append these to the same **`terraform/primitives/compliant-s3/main.tf`** you started in Step 2.
 
 ```hcl
-# main.tf (continued)
+# terraform/primitives/compliant-s3/main.tf (continued)
 
 # SC-28: Protection of information at rest.
 # AES-256 keeps this lab simple. The commented block below shows how you'd
@@ -390,10 +406,10 @@ All four flags in that last block must be `true`. AWS treats them as four indepe
 
 ## Step 4: Add the log bucket and turn on access logging
 
-The log bucket needs its own encryption and public-access block, plus a small ACL that lets AWS's log-delivery service write into it. The order matters here, which is why there's a `depends_on`. Append to `main.tf`:
+The log bucket needs its own encryption and public-access block, plus a small ACL that lets AWS's log-delivery service write into it. The order matters here, which is why there's a `depends_on`. Append to **`terraform/primitives/compliant-s3/main.tf`**:
 
 ```hcl
-# main.tf (continued)
+# terraform/primitives/compliant-s3/main.tf (continued)
 
 # AU-3 / AU-6: Content of audit records + audit review.
 resource "aws_s3_bucket" "log" {
@@ -437,10 +453,10 @@ resource "aws_s3_bucket_logging" "primary" {
 
 That last resource, `aws_s3_bucket_logging`, is the line that actually wires AU-3. It tells the primary bucket to send its access logs to the log bucket. Without it you'd have two buckets and no audit trail between them.
 
-Now `outputs.tf`. Outputs are values Terraform hands back after it runs. Most of these are identifiers, but `encryption_algorithm` is something more interesting: it's deliberate evidence. It's the SC-28 attestation, in a form a machine can read and a policy can later check.
+Now open **`terraform/primitives/compliant-s3/outputs.tf`**. Outputs are values Terraform hands back after it runs. Most of these are identifiers, but `encryption_algorithm` is something more interesting: it's deliberate evidence. It's the SC-28 attestation, in a form a machine can read and a policy can later check.
 
 ```hcl
-# outputs.tf
+# terraform/primitives/compliant-s3/outputs.tf
 output "bucket_arn"     { value = aws_s3_bucket.primary.arn }
 output "bucket_name"    { value = aws_s3_bucket.primary.id }
 output "log_bucket_arn" { value = aws_s3_bucket.log.arn }
@@ -618,6 +634,8 @@ terraform destroy -auto-approve -var="project_name=cgep-lab" -var="environment=d
 ```
 
 If you destroy within a few minutes of applying, the log bucket is probably still empty and the `delete-objects` call simply does nothing.
+
+Before you commit, open **`terraform/primitives/compliant-s3/README.md`** (scaffolded empty in Part 2) and write one paragraph: this module enforces SC-28, AU-3, AU-6, CM-6, AC-3 on a single S3 bucket.
 
 ## Portfolio submission checklist
 

@@ -57,21 +57,38 @@ cgep-labs/
 │           ├── outputs.tf
 │           └── README.md
 └── evidence/lab-5-2/
-    └── security-hub-findings.json
+    └── security-hub-findings.json   ← filled in when you capture evidence
 ```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
 
 ```bash
 # from the repo root
 mkdir -p terraform/baselines/aws evidence/lab-5-2
+
+touch \
+  terraform/baselines/aws/main.tf \
+  terraform/baselines/aws/cloudtrail.tf \
+  terraform/baselines/aws/security_hub.tf \
+  terraform/baselines/aws/variables.tf \
+  terraform/baselines/aws/outputs.tf \
+  terraform/baselines/aws/README.md
+
+find terraform/baselines/aws evidence/lab-5-2 -type f | sort
+
+# Most of the steps below edit files in this folder:
 cd terraform/baselines/aws
+ls
 ```
 
 ### Step 0: The connective scaffolding
 
-The service files below reference a provider, a random suffix, and your account ID. Put those shared pieces in `main.tf` and `variables.tf` first (the original lab assumed these; they're spelled out here so the baseline applies cleanly).
+The service files below reference a provider, a random suffix, and your account ID. Open **`terraform/baselines/aws/main.tf`** and **`terraform/baselines/aws/variables.tf`** first (the original lab assumed these; they're spelled out here so the baseline applies cleanly).
 
 ```hcl
-# main.tf
+# terraform/baselines/aws/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -97,7 +114,7 @@ resource "random_id" "suffix" { byte_length = 4 }
 ```
 
 ```hcl
-# variables.tf
+# terraform/baselines/aws/variables.tf
 variable "aws_region" {
   type    = string
   default = "us-east-1"
@@ -106,9 +123,10 @@ variable "aws_region" {
 
 ### Step 1: CloudTrail
 
-A multi-region trail with log-file validation. The bucket policy scopes the `aws:SourceArn` condition to exactly the trail you're about to create, which is the part people most often get wrong. Create `cloudtrail.tf`:
+A multi-region trail with log-file validation. The bucket policy scopes the `aws:SourceArn` condition to exactly the trail you're about to create, which is the part people most often get wrong. Open **`terraform/baselines/aws/cloudtrail.tf`** and paste:
 
 ```hcl
+# terraform/baselines/aws/cloudtrail.tf
 resource "aws_s3_bucket" "trail" {
   bucket        = "cgep-lab-cloudtrail-${random_id.suffix.hex}"
   force_destroy = true
@@ -186,9 +204,10 @@ The single most valuable line is `enable_log_file_validation = true`. It makes C
 
 ### Step 2: Security Hub
 
-Subscribe to two standards: NIST 800-53 Rev 5 and AWS Foundational Security Best Practices. Subscribing is free; you pay per check. Create `security_hub.tf`:
+Subscribe to two standards: NIST 800-53 Rev 5 and AWS Foundational Security Best Practices. Subscribing is free; you pay per check. Open **`terraform/baselines/aws/security_hub.tf`** and paste:
 
 ```hcl
+# terraform/baselines/aws/security_hub.tf
 resource "aws_securityhub_account" "this" {}
 
 resource "aws_securityhub_standards_subscription" "nist_800_53" {
@@ -222,10 +241,10 @@ then Config is managed elsewhere in your org, and you should leave it out of thi
 
 ### Step 4: Add outputs, then apply and wait
 
-Create `outputs.tf` so verify commands can pull names without copy-pasting:
+Open **`terraform/baselines/aws/outputs.tf`** so verify commands can pull names without copy-pasting:
 
 ```hcl
-# outputs.tf
+# terraform/baselines/aws/outputs.tf
 output "trail_name" {
   value       = aws_cloudtrail.mgmt.name
   description = "CloudTrail name for verify commands."
@@ -288,6 +307,8 @@ This JSON is exactly the kind of artifact your Lab 4.4 signing step uploads to t
 - `aws securityhub describe-hub` returns the hub ARN.
 - At least one finding appears within 30 minutes.
 - `evidence/lab-5-2/security-hub-findings.json` is captured and non-empty.
+
+Before you commit, open **`terraform/baselines/aws/README.md`** (scaffolded empty) and map each service to its controls: AU-2/AU-12/AU-10 (CloudTrail), RA-5/SI-4 (Security Hub), CM-2/CM-6/CM-8 (Config, if present).
 
 ## Commit your work
 

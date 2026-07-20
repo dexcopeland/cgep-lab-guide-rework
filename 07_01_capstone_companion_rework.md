@@ -92,6 +92,41 @@ your-cgep-capstone/                 (fork of cgep-app-starter)
 
 The point of laying it out this way is to make the assembly visible: nearly every file traces back to a lab you've already done. The capstone is the wiring, not the parts.
 
+### Scaffold the files you'll add on top of the starter
+
+After you fork and clone `cgep-app-starter`, run this once from that repo root so the new paths exist as empty files before you copy content over from `cgep-labs`. (Keep the starter's existing Terraform; this only adds the governance layer.)
+
+```bash
+# from your-cgep-capstone/ (fork of cgep-app-starter)
+mkdir -p \
+  terraform \
+  policies/tests \
+  scripts \
+  .github/workflows \
+  oscal/components \
+  oscal/profiles
+
+touch \
+  terraform/kms.tf \
+  terraform/evidence-vault.tf \
+  terraform/cloudtrail.tf \
+  terraform/oidc-trust.tf \
+  terraform/hardening.tf \
+  scripts/policy-gate.sh \
+  scripts/capture-evidence.sh \
+  scripts/verify-evidence.sh \
+  .github/workflows/grc-gate.yml \
+  oscal/components/your-component.json \
+  oscal/profiles/cge-p-minimum.json \
+  WRITEUP.md
+
+chmod +x scripts/*.sh
+
+find terraform policies scripts .github/workflows oscal WRITEUP.md -maxdepth 2 -type f 2>/dev/null | sort
+```
+
+When a later section says "bring over Lab 2.5's vault" or "paste your Lab 3.4 gate," open the matching empty file above and paste into that path — don't create a second copy under a different name.
+
 ## The 30-day plan, with checkpoints
 
 Break it into weeks, and don't start on day 29. Each week has a checkpoint that tells you whether to keep going or cut scope.

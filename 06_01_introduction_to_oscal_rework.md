@@ -35,6 +35,43 @@ A quick map so the vocabulary doesn't trip you:
 
 You're building the middle two: a component definition that says "here's what my module does and here's the proof," and a profile that says "here are the controls I'm claiming."
 
+## Where these files live
+
+```
+cgep-labs/
+├── oscal/                                 ← committed, capstone-shaped layout
+│   ├── components/
+│   │   └── compliant-s3.json              ← copied from trestle at the end
+│   ├── profiles/
+│   │   └── cge-p-minimum.json             ← copied from trestle at the end
+│   └── README.md
+├── evidence/lab-6-1/
+│   └── trestle-validate.txt               ← filled in when you validate
+└── .trestle-work/                         ← local authoring only (gitignored)
+    ├── component-definitions/compliant-s3-v1/component-definition.json
+    └── profiles/cge-p-minimum/profile.json
+```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates the committed layout up front; trestle will create its own working tree in the next step.
+
+```bash
+# from the repo root
+mkdir -p oscal/components oscal/profiles evidence/lab-6-1
+
+touch \
+  oscal/components/compliant-s3.json \
+  oscal/profiles/cge-p-minimum.json \
+  oscal/README.md
+
+grep -qxF '.trestle-work/' .gitignore || echo '.trestle-work/' >> .gitignore
+
+find oscal evidence/lab-6-1 -type f | sort
+```
+
+You will author inside `.trestle-work/` (trestle's native layout), then copy the finished JSON into the empty `oscal/...` files above.
+
 ## Step-by-step walkthrough
 
 ### Step 1: Initialize a trestle workspace
@@ -44,31 +81,24 @@ Work under a temporary authoring directory so trestle's full layout doesn't coll
 ```bash
 # from the repo root
 pip install compliance-trestle
-mkdir -p evidence/lab-6-1
 mkdir -p .trestle-work && cd .trestle-work
 trestle init
 ```
 
 Trestle lays down an OSCAL-shaped directory: `catalogs/`, `profiles/`, `component-definitions/`, and so on. It's opinionated about structure, which is helpful, because the schema is strict and trestle keeps you inside the lines.
 
-Add `.trestle-work/` to your repo-root `.gitignore` so the working tree doesn't get committed (only the finished files under `oscal/` matter):
-
-```bash
-# from the repo root (after you're done, or do this now in another terminal)
-grep -qxF '.trestle-work/' .gitignore || echo '.trestle-work/' >> .gitignore
-```
-
 ### Step 2: Create the component-definition skeleton
 
 ```bash
+# still inside .trestle-work/
 trestle create -t component-definition -o compliant-s3-v1 -x json
 ```
 
-This generates a minimal valid skeleton at `component-definitions/compliant-s3-v1/component-definition.json`. Open it and replace it with the real document in the next step.
+This generates a minimal valid skeleton at **`.trestle-work/component-definitions/compliant-s3-v1/component-definition.json`**. Open that file and replace it with the real document in the next step.
 
 ### Step 3: Write the component definition
 
-This document describes your `compliant-s3` module (the one at `terraform/primitives/compliant-s3`) in OSCAL terms: which controls it implements, which Terraform resource enforces each, and where the evidence lives.
+Open **`.trestle-work/component-definitions/compliant-s3-v1/component-definition.json`**. This document describes your `compliant-s3` module (the one at `terraform/primitives/compliant-s3`) in OSCAL terms: which controls it implements, which Terraform resource enforces each, and where the evidence lives.
 
 ```json
 {
@@ -150,9 +180,10 @@ If it fails, the message usually points right at the missing or malformed field.
 
 ### Step 5: Write the profile
 
-A profile selects which catalog controls you're claiming. Create the skeleton, then edit it:
+A profile selects which catalog controls you're claiming. Create the skeleton, then open **`.trestle-work/profiles/cge-p-minimum/profile.json`** and replace its contents:
 
 ```bash
+# still inside .trestle-work/
 trestle create -t profile -o cge-p-minimum -x json
 ```
 
@@ -210,17 +241,20 @@ When it prints `CHAIN INTACT`, you've just done what an assessor does: started f
 
 ## Capture and commit
 
-You're still inside `.trestle-work/`. Validate, then copy the finished documents into the capstone-shaped layout at the repo root:
+You're still inside `.trestle-work/`. Validate, then overwrite the empty scaffold files under `oscal/` at the repo root:
 
 ```bash
 trestle validate -f component-definitions/compliant-s3-v1/component-definition.json \
   > ../evidence/lab-6-1/trestle-validate.txt 2>&1
 
-mkdir -p ../oscal/components ../oscal/profiles
 cp component-definitions/compliant-s3-v1/component-definition.json ../oscal/components/compliant-s3.json
 cp profiles/cge-p-minimum/profile.json ../oscal/profiles/cge-p-minimum.json
 
 cd ..   # back to cgep-labs (repo root)
+ls oscal/components oscal/profiles evidence/lab-6-1
+
+# Fill the scaffolded README: which module each component describes and where its evidence lives
+# Open oscal/README.md and write a short note, then:
 git add oscal evidence/lab-6-1 .gitignore
 git commit -m "Lab 6.1: OSCAL component definition + profile + validation"
 git push
