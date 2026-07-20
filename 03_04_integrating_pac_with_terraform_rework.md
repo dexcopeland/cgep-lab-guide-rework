@@ -87,10 +87,12 @@ opa test -v policies/    # expect 8/8 PASS
 
 You don't need the Lab 2.3 bucket to be live. `terraform plan` computes what *would* be created, so a plan works even with nothing deployed. It does need AWS credentials to check current state, but it applies nothing and costs nothing.
 
+> Commands below use `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+
 ```bash
 # from the repo root
 cd terraform/primitives/compliant-s3
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
+eval "$(aws configure export-credentials --profile default --format env)"  # if you use SSO
 terraform init
 # Pass the same vars Lab 2.3 used so plan doesn't prompt (CI can't type answers):
 terraform plan -out=tfplan -var="project_name=cgep-lab" -var="environment=dev"

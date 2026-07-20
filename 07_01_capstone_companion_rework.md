@@ -12,11 +12,13 @@ The single most common way capstones go wrong is treating it like a from-scratch
 
 Before any governance work, you have to get the starter application running in your own AWS sandbox. This is a real gate, not a formality: a GRC engineer inherits working systems, and proving you can stand one up is the floor.
 
+> The commands below use `AWS_PROFILE=default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+
 ```bash
 git clone https://github.com/GRCEngClub/cgep-app-starter
 cd cgep-app-starter
-make deploy AWS_PROFILE=<your-sandbox>
-make test   AWS_PROFILE=<your-sandbox>
+make deploy AWS_PROFILE=default
+make test   AWS_PROFILE=default
 ```
 
 `make deploy` provisions the starter's infrastructure (the Patient Intake API and its supporting resources) into your account. `make test` exercises it. If `make test` returns something like `{"submission_id": "...", "status": "received"}`, the application is live and you have something to govern. If it doesn't, stop and fix that first. Everything downstream assumes a working system underneath.

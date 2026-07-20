@@ -108,12 +108,12 @@ Terraform doesn't log into AWS by itself. It borrows credentials from the AWS CL
 - If your sandbox uses a plain access key, run `aws configure` and paste in your key, secret, and default region (`us-east-1` for this lab).
 - If your sandbox uses AWS SSO (also called IAM Identity Center), run `aws configure sso` and follow the browser prompts.
 
-Throughout this guide you'll see `--profile <your-sandbox>`. Replace `<your-sandbox>` with the name you gave your profile. **If your profile is the default one (literally named `default`), you can drop `--profile <your-sandbox>` entirely**, since the CLI uses `default` automatically.
+Commands in this guide (and later labs) use `--profile default` so you can paste them as-is if you kept the usual AWS CLI profile name. **If you named your profile something else during `aws configure` or `aws configure sso`, replace `default` with that name** wherever you see `--profile default`.
 
 Confirm the CLI can reach your account:
 
 ```bash
-aws sts get-caller-identity --profile <your-sandbox>
+aws sts get-caller-identity --profile default
 ```
 
 A JSON blob with your account ID means you're connected.
@@ -486,7 +486,7 @@ Two of those steps need input from you. Look back at `variables.tf`: `project_na
 If your sandbox uses AWS SSO, export your credentials first so Terraform's AWS provider can use them (the provider doesn't always read SSO config the way the CLI does):
 
 ```bash
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
+eval "$(aws configure export-credentials --profile default --format env)"
 ```
 
 Then run the loop:
@@ -561,9 +561,9 @@ The evidence above comes from Terraform's own view of the world. It's worth conf
 ```bash
 BUCKET=$(terraform output -raw bucket_name)
 
-aws s3api get-bucket-encryption    --profile <your-sandbox> --bucket "$BUCKET"
-aws s3api get-bucket-versioning    --profile <your-sandbox> --bucket "$BUCKET"
-aws s3api get-public-access-block  --profile <your-sandbox> --bucket "$BUCKET"
+aws s3api get-bucket-encryption    --profile default --bucket "$BUCKET"
+aws s3api get-bucket-versioning    --profile default --bucket "$BUCKET"
+aws s3api get-public-access-block  --profile default --bucket "$BUCKET"
 ```
 
 Expected output, trimmed:
@@ -615,12 +615,12 @@ Versioned buckets won't delete while they still hold object versions, so empty t
 LOG_BUCKET=$(terraform output -raw log_bucket_arn | sed 's/.*:::\(.*\)/\1/')
 
 # Empty the primary bucket (probably nothing in it yet, but be safe)
-aws s3 rm "s3://$(terraform output -raw bucket_name)" --recursive --profile <your-sandbox>
+aws s3 rm "s3://$(terraform output -raw bucket_name)" --recursive --profile default
 
 # The log bucket may hold access-log objects. Empty all versions:
-aws s3api list-object-versions --profile <your-sandbox> --bucket "$LOG_BUCKET" \
+aws s3api list-object-versions --profile default --bucket "$LOG_BUCKET" \
   --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json \
-  | aws s3api delete-objects --profile <your-sandbox> --bucket "$LOG_BUCKET" --delete file:///dev/stdin || true
+  | aws s3api delete-objects --profile default --bucket "$LOG_BUCKET" --delete file:///dev/stdin || true
 
 terraform destroy -auto-approve
 ```
@@ -654,7 +654,7 @@ Your `cgep-labs` repo on GitHub should now contain:
 
 - **`BucketAlreadyExists`.** S3 bucket names are globally unique. The `random_id` suffix should prevent this; if you set `bucket_suffix` by hand, pick something more unique.
 - **`AccessDenied` writing to the log bucket.** The log bucket needs the `log-delivery-write` ACL, which requires `aws_s3_bucket_ownership_controls` set to `BucketOwnerPreferred` *first*. The `depends_on` in Step 4 sequences this for you, so don't remove it.
-- **`failed to find SSO session section`.** Terraform's AWS provider doesn't always parse SSO config the way the CLI does. Run `eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"` before your Terraform commands.
+- **`failed to find SSO session section`.** Terraform's AWS provider doesn't always parse SSO config the way the CLI does. Run `eval "$(aws configure export-credentials --profile default --format env)"` before your Terraform commands.
 - **Terraform state lock errors.** Usually a leftover from an interrupted run. Run `terraform force-unlock <lock-id>` only if you're sure no one else is applying.
 - **Region mismatch / `NoSuchBucket` on a verify command.** Your profile may default to a different region than the provider's `us-east-1`. Add `--region us-east-1` to the `aws s3api` command.
 - **(Windows) a command fails with a path that looks half-converted.** Git Bash rewrote a `/`-leading argument. Re-run with `MSYS_NO_PATHCONV=1` in front of the command.

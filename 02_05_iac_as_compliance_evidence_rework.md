@@ -10,7 +10,7 @@ If this is your first lab, set up [your tools](../getting-started/tools.md) and 
 
 This lab is on AWS, so you need:
 
-- A working **AWS CLI** profile (this guide uses `--profile <your-sandbox>`; drop it if your profile is `default`).
+- A working **AWS CLI** profile. Commands below use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
 - `sha256sum` or `shasum` on your PATH. Git Bash ships `sha256sum`; macOS ships `shasum`. The script handles either.
 - Terraform `>= 1.6`.
 - Optional, for the signing step at the end: **Cosign**, from https://docs.sigstore.dev/cosign/system_config/installation/
@@ -79,7 +79,7 @@ This lab captures evidence *from* a live Terraform workspace. On a fresh day, th
 ```bash
 # from the repo root
 cd terraform/primitives/compliant-s3
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
+eval "$(aws configure export-credentials --profile default --format env)"  # if you use SSO
 terraform init
 terraform apply -auto-approve -var="project_name=cgep-lab" -var="environment=dev"
 cd ../../..   # back to the repo root
@@ -306,7 +306,7 @@ Apply the vault, grab its name, then run the capture against the compliant-s3 wo
 ```bash
 # from the repo root
 cd terraform/primitives/evidence-vault
-eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
+eval "$(aws configure export-credentials --profile default --format env)"
 terraform init && terraform apply -auto-approve
 VAULT=$(terraform output -raw vault_name)
 cd ../../..   # back to the repo root
@@ -315,7 +315,7 @@ bash scripts/capture-evidence.sh \
   --workspace terraform/primitives/compliant-s3 \
   --run-id    test-001 \
   --vault     "$VAULT" \
-  --profile   <your-sandbox>
+  --profile   default
 ```
 
 You'll get a receipt:
@@ -333,14 +333,14 @@ bash scripts/capture-evidence.sh \
   --workspace terraform/primitives/compliant-s3 \
   --run-id    test-001 \
   --vault     "$VAULT" \
-  --profile   <your-sandbox> > evidence/lab-2-5/receipt.json
+  --profile   default > evidence/lab-2-5/receipt.json
 ```
 
 ### Step 4: Verify the retention took hold
 
 ```bash
 aws s3api get-object-retention \
-  --bucket "$VAULT" --key runs/test-001/bundle.tar.gz --profile <your-sandbox>
+  --bucket "$VAULT" --key runs/test-001/bundle.tar.gz --profile default
 ```
 
 Expected:
@@ -364,13 +364,13 @@ This is the moment the whole lab is built around, so do it deliberately. Try to 
 # capture the current version's ID directly from S3, instead of copy-pasting it
 VERSION_ID=$(aws s3api list-object-versions --bucket "$VAULT" \
   --prefix runs/test-001/bundle.tar.gz \
-  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile <your-sandbox>)
+  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile default)
 
 aws s3api delete-object \
   --bucket "$VAULT" \
   --key runs/test-001/bundle.tar.gz \
   --version-id "$VERSION_ID" \
-  --profile <your-sandbox>
+  --profile default
 ```
 
 You will see:
@@ -390,7 +390,7 @@ If you installed Cosign, you can add a cryptographic signature. Keyless signing 
 COSIGN_EXPERIMENTAL=1 cosign sign-blob \
   --yes --bundle bundle.sig.bundle \
   /tmp/bundle-test-001.tar.gz
-aws s3 cp bundle.sig.bundle "s3://$VAULT/runs/test-001/bundle.sig.bundle" --profile <your-sandbox>
+aws s3 cp bundle.sig.bundle "s3://$VAULT/runs/test-001/bundle.sig.bundle" --profile default
 ```
 
 Lab 4.4 covers verification end to end. For now, signing it is enough to see the shape.
@@ -417,17 +417,17 @@ cd terraform/primitives/evidence-vault
 # capture the current version's ID directly from S3, instead of copy-pasting it
 VERSION_ID=$(aws s3api list-object-versions --bucket "$VAULT" \
   --prefix runs/test-001/bundle.tar.gz \
-  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile <your-sandbox>)
+  --query "Versions[?IsLatest].VersionId | [0]" --output text --profile default)
 
 aws s3api delete-object --bucket "$VAULT" --key runs/test-001/bundle.tar.gz \
-  --version-id "$VERSION_ID" --bypass-governance-retention --profile <your-sandbox>
+  --version-id "$VERSION_ID" --bypass-governance-retention --profile default
 
 # remove any delete markers
-aws s3api list-object-versions --bucket "$VAULT" --profile <your-sandbox> \
+aws s3api list-object-versions --bucket "$VAULT" --profile default \
   --query "[Versions[],DeleteMarkers[]][].{Key:Key,VersionId:VersionId}" --output text \
   | while read -r key version; do
       aws s3api delete-object --bucket "$VAULT" --key "$key" \
-        --version-id "$version" --bypass-governance-retention --profile <your-sandbox>
+        --version-id "$version" --bypass-governance-retention --profile default
     done
 
 terraform destroy -auto-approve
