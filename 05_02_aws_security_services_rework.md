@@ -308,6 +308,8 @@ This JSON is exactly the kind of artifact your Lab 4.4 signing step uploads to t
 - At least one finding appears within 30 minutes.
 - `evidence/lab-5-2/security-hub-findings.json` is captured and non-empty.
 
+Before you commit, open **`terraform/baselines/aws/README.md`** (scaffolded empty) and map each service to its controls: AU-2/AU-12/AU-10 (CloudTrail), RA-5/SI-4 (Security Hub), CM-2/CM-6/CM-8 (Config, if present).
+
 ## Commit your work
 
 ```bash

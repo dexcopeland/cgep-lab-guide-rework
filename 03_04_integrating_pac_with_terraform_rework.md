@@ -413,9 +413,12 @@ cp evidence/lab-3-4/conftest-results.json evidence/lab-3-4/conftest-fail.json
 - Broken plan: exit 1, at least one SC-28 failure with the full remediation message.
 - `evidence/lab-3-4/conftest-results.json` exists after each run.
 
+Before you commit, update **`policies/README.md`** so it notes which file targets which cloud (the three GCP files from Lab 3.3 and the three `*_aws.rego` files from this lab).
+
 ## Commit your work
 
 ```bash
+# from the repo root
 git add policies/*_aws.rego policies/README.md scripts/policy-gate.sh evidence/lab-3-4
 git commit -m "Lab 3.4: AWS policy variants + Conftest gate + evidence"
 git push
