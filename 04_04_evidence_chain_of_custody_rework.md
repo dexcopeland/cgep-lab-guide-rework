@@ -14,7 +14,7 @@ You need:
 - Your Lab 4.3 workflow (`grc-gate.yml`) committed and working.
 - The Lab 2.5 vault. On a fresh day it was destroyed, so redeploy it in Step 0 below.
 
-> **Windows users:** the verify script uses `shasum -a 256`. Git Bash ships `sha256sum` instead. If you hit `shasum: command not found`, replace `shasum -a 256` with `sha256sum` in your local copy of the script, or alias it. The hash is identical either way.
+> **Hashing tools differ by OS.** macOS ships `shasum -a 256`; Git Bash and Ubuntu (including GitHub Actions runners) ship `sha256sum`. The workflow and verify script below detect whichever is available, the same way Lab 2.5's `capture-evidence.sh` does.
 
 ## Time and cost
 
@@ -67,12 +67,13 @@ Normally signing means managing private keys, which is its own security headache
 On a fresh day your Lab 2.5 vault is gone, so stand it back up and record its name:
 
 ```bash
+# from the repo root
 cd terraform/primitives/evidence-vault
 eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"
 terraform init && terraform apply -auto-approve
 VAULT=$(terraform output -raw vault_name)
 cd ../../..
-gh variable set EVIDENCE_VAULT --body "$VAULT" --repo OWNER/REPO
+gh variable set EVIDENCE_VAULT --body "$VAULT" --repo <your-github-org>/cgep-labs
 ```
 
 ### Step 1: Add signing to the workflow
@@ -98,9 +99,13 @@ Then, after the `Copy plan into evidence` step, add the bundle/sign/upload step:
     SHA: ${{ github.sha }}
   run: |
     set -euo pipefail
+    if command -v sha256sum >/dev/null 2>&1; then SHASUM="sha256sum"
+    elif command -v shasum >/dev/null 2>&1; then SHASUM="shasum -a 256"
+    else echo "Need sha256sum or shasum" >&2; exit 2; fi
+
     BUNDLE="evidence-${RUN_ID}-${SHA}.tar.gz"
     ( cd evidence/lab-4-3 && tar czf "../../${BUNDLE}" . )
-    shasum -a 256 "${BUNDLE}" | awk '{print $1}' > "${BUNDLE}.sha256"
+    $SHASUM "${BUNDLE}" | awk '{print $1}' > "${BUNDLE}.sha256"
 
     cosign sign-blob --yes --bundle "${BUNDLE}.sig.bundle" "${BUNDLE}"
 
@@ -121,9 +126,25 @@ Then, after the `Copy plan into evidence` step, add the bundle/sign/upload step:
     }
     EOF
     aws s3 cp receipt.json "s3://${VAULT}/${KEY_PREFIX}/receipt.json"
+    mkdir -p evidence/lab-4-4
+    cp receipt.json evidence/lab-4-4/receipt.json
 ```
 
 The `--bundle` flag packs the signature, Fulcio's certificate, and the Rekor log reference into one file. That single file is everything your verify script needs.
+
+Also widen the existing upload-artifact step so the Lab 4.4 receipt is retained with the rest of the run evidence:
+
+```yaml
+- name: Upload evidence artifact
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: grc-evidence-${{ github.run_id }}
+    path: |
+      evidence/lab-4-3/
+      evidence/lab-4-4/
+    retention-days: 90
+```
 
 > **Sign even when the gate fails.** In Lab 4.3 the policy check could end the job before this step runs, which would mean a failed run leaves no signed evidence, exactly the runs you most want a record of. The fix is ordering: let the earlier gate steps *record* pass or fail without ending the job (they already use `if: always()` on the steps that follow), do the sign-and-upload, and put the actual build-failing decision in a final step:
 
@@ -177,9 +198,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --vault)   VAULT="$2"; shift 2 ;;
     --profile) PROFILE_ARG="--profile $2"; shift 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
   esac
 done
 [[ -z "$VAULT" ]] && { echo "Set --vault or EVIDENCE_VAULT"; exit 2; }
+
+if command -v sha256sum >/dev/null 2>&1; then SHASUM="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then SHASUM="shasum -a 256"
+else echo "Need sha256sum or shasum" >&2; exit 2; fi
 
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT; cd "$WORK"
 PREFIX="runs/${RUN_ID}"
@@ -191,7 +217,7 @@ BUNDLE=$(ls evidence-*.tar.gz | head -1)
 
 # 1. Integrity
 EXPECTED=$(cat "${BUNDLE}.sha256")
-ACTUAL=$(shasum -a 256 "${BUNDLE}" | awk '{print $1}')
+ACTUAL=$($SHASUM "${BUNDLE}" | awk '{print $1}')
 [[ "$EXPECTED" == "$ACTUAL" ]] || { echo "FAIL: SHA mismatch"; exit 1; }
 
 # 2. Authenticity + timestamp
@@ -215,10 +241,11 @@ Each check maps to one of the four properties: the SHA comparison is integrity, 
 
 ### Step 4: Run a fresh PR and verify it
 
-Commit the workflow changes, push, open a PR. The run produces signed bundles. Then, from your laptop:
+Commit the workflow changes, push, open a PR. The run produces signed bundles. Grab the run ID from the Actions tab (or `gh run list --limit 1`), then verify from your laptop without hand-copying vault paths:
 
 ```bash
-EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh <run_id> --profile <your-sandbox>
+RUN_ID=$(gh run list --workflow=grc-gate.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile <your-sandbox>
 ```
 
 You're looking for, at the very end:
@@ -231,14 +258,27 @@ CHAIN INTACT for run <run-id>
 
 `Verified OK` is Cosign confirming the signature matches the bundle and the Rekor entry exists. `CHAIN INTACT` is your script confirming all three checks passed.
 
-### Step 5: The tamper test
-
-This is the demonstration the whole lab builds toward, so do it and watch it fail. Download the bundle, change a single byte, and re-verify:
+Pull a local copy of the receipt into your repo (the workflow also writes `evidence/lab-4-4/receipt.json` into the Actions artifact, but committing it from your laptop is what lands it in GitHub):
 
 ```bash
-aws s3 cp "s3://${VAULT}/runs/<run_id>/evidence-<run_id>-<sha>.tar.gz" /tmp/bundle.tar.gz --profile <your-sandbox>
+mkdir -p evidence/lab-4-4
+aws s3 cp "s3://${VAULT}/runs/${RUN_ID}/receipt.json" evidence/lab-4-4/receipt.json \
+  --profile <your-sandbox>
+```
+
+### Step 5: The tamper test
+
+This is the demonstration the whole lab builds toward, so do it and watch it fail. Download the bundle using the receipt (or list the prefix), change a single byte, and re-hash:
+
+```bash
+# reuse RUN_ID and VAULT from above
+BUNDLE_KEY=$(aws s3api list-objects-v2 --bucket "$VAULT" --prefix "runs/${RUN_ID}/" \
+  --query "Contents[?ends_with(Key, '.tar.gz')].Key | [0]" --output text --profile <your-sandbox>)
+
+aws s3 cp "s3://${VAULT}/${BUNDLE_KEY}" /tmp/bundle.tar.gz --profile <your-sandbox>
 echo "junk" >> /tmp/bundle.tar.gz
-shasum -a 256 /tmp/bundle.tar.gz
+if command -v sha256sum >/dev/null 2>&1; then sha256sum /tmp/bundle.tar.gz
+else shasum -a 256 /tmp/bundle.tar.gz; fi
 # the value now differs from the .sha256 sidecar; verification fails
 ```
 
@@ -249,7 +289,8 @@ And notice what you *can't* do: you can't write the tampered bundle back over th
 ## Commit your work
 
 ```bash
-git add .github/workflows/grc-gate.yml scripts/verify-evidence.sh
+# from the repo root
+git add .github/workflows/grc-gate.yml scripts/verify-evidence.sh evidence/lab-4-4
 git commit -m "Lab 4.4: Cosign signing + chain-of-custody verification"
 git push
 ```
@@ -265,6 +306,7 @@ git push
 - [ ] `grc-gate.yml` has the Cosign install, the bundle/sign/upload step, and the final enforce-gate step.
 - [ ] `scripts/verify-evidence.sh` committed and executable.
 - [ ] At least one run's full signed bundle visible in the vault.
+- [ ] `evidence/lab-4-4/receipt.json` committed (copied from the signing step).
 - [ ] A `WRITEUP.md` section mapping each of the four chain properties to the artifact that proves it.
 
 ## Cleanup
@@ -277,7 +319,7 @@ Don't clean the vault on purpose; the point of retention is that evidence outliv
 - **`cosign verify-blob` fails on certificate identity.** The script uses a permissive `--certificate-identity-regexp '.*'`. For stricter checks, replace it with the exact workflow subject, for example `^https://github.com/OWNER/REPO/.github/workflows/grc-gate.yml@refs/heads/main$`.
 - **Rekor lag.** The public transparency log can trail the signing call by about a second. Verifying microseconds after signing can miss the entry. CI naturally waits; this only bites on a laptop loop.
 - **403 on the second upload.** Object Lock blocks overwriting an existing key. Each run lands under a unique `runs/<run_id>` prefix, so a fresh run avoids this; don't reuse a run ID.
-- **`shasum: command not found` (Git Bash).** Use `sha256sum` instead, as noted at the top.
+- **`Need sha256sum or shasum`.** Neither hashing tool is on your PATH. Git Bash and Ubuntu include `sha256sum`; macOS includes `shasum`. Confirm with `command -v sha256sum` or `command -v shasum`.
 
 ## How this feeds the capstone
 

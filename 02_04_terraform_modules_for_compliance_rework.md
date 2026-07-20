@@ -285,7 +285,7 @@ That `compliance_attestation` is the bridge to later labs. In Chapter 3 a Rego p
 Create `terraform/primitives/compliant-gcs/main.tf`. This is the whole consumer.
 
 ```hcl
-# consumers/dev/main.tf
+# terraform/primitives/compliant-gcs/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -310,6 +310,7 @@ module "data_bucket" {
 
 output "attestation" { value = module.data_bucket.compliance_attestation }
 output "bucket_url"  { value = module.data_bucket.bucket_url }
+output "kms_key_id"  { value = module.data_bucket.kms_key_id }
 ```
 
 The `source = "../../modules/compliant-gcs-bucket"` is a relative path: from `terraform/primitives/compliant-gcs/`, climb up to `primitives`, up to `terraform`, then into `modules`. Six lines of business config, and the module supplies twenty-plus controls behind them.
@@ -320,9 +321,10 @@ The `source = "../../modules/compliant-gcs-bucket"` is a relative path: from `te
 
 ### Step 5: Write the prod consumer (plan only)
 
-Copy the dev consumer to `terraform/primitives/compliant-gcs-prod/` and swap two values. Same module, same security floor, different business config.
+Copy the dev consumer to `terraform/primitives/compliant-gcs-prod/` and swap the business settings. Same module, same security floor, different retention. Keep the same provider block and the same three outputs (`attestation`, `bucket_url`, `kms_key_id`).
 
 ```hcl
+# terraform/primitives/compliant-gcs-prod/main.tf  (module block only; keep provider + outputs)
 module "data_bucket" {
   source = "../../modules/compliant-gcs-bucket"
 
@@ -330,15 +332,18 @@ module "data_bucket" {
   project_label      = "cgep-lab"
   environment        = "prod"
   retention_days     = 365
-  bucket_name_suffix = "prod-data-001"
+  bucket_name_suffix = "prod-data-001"   # use your personal suffix, e.g. prod-data-<your-initials>
 }
 ```
 
-(Keep the same provider block and outputs.) You'll only *plan* this one, not apply it. A 365-day retention lock is real, and you don't want a bucket you can't delete for a year sitting in a lab account.
+You'll only *plan* this one, not apply it. A 365-day retention lock is real, and you don't want a bucket you can't delete for a year sitting in a lab account.
 
 ### Step 6: Apply dev and read the attestation
 
+If your Application Default Credentials have gone stale since you set them up, refresh them first with `gcloud auth application-default login`. Then:
+
 ```bash
+# from the repo root
 cd terraform/primitives/compliant-gcs
 terraform init
 terraform plan -out=tfplan
@@ -364,9 +369,10 @@ That block is the SC-12 / SC-13 / SC-28 / AC-3 / CM-6 / AU-11 attestation in mac
 
 ### Step 7: The negative test
 
-This is the lesson of the lab, so don't skip it. Copy the dev consumer to `terraform/primitives/compliant-gcs-negative/`, set it to `prod` with a too-short retention, and run plan:
+This is the lesson of the lab, so don't skip it. Copy the dev consumer to `terraform/primitives/compliant-gcs-negative/`, keep the provider and outputs, and change only the module inputs so prod gets a too-short retention. Then run plan from that folder:
 
 ```hcl
+# terraform/primitives/compliant-gcs-negative/main.tf  (module block only)
 module "data_bucket" {
   source = "../../modules/compliant-gcs-bucket"
 
@@ -376,6 +382,13 @@ module "data_bucket" {
   retention_days     = 30   # FAILS: prod requires >= 365
   bucket_name_suffix = "should-never-exist"
 }
+```
+
+```bash
+cd terraform/primitives/compliant-gcs-negative
+terraform init
+terraform plan
+cd ../../..   # back to the repo root
 ```
 
 ```
@@ -393,19 +406,24 @@ Sit with what just happened. The compliance check fired at `terraform plan`, bef
 
 ## Verify it from the outside
 
-Substitute your bucket name (with your personal suffix):
+Pull the names from Terraform outputs so you don't have to copy-paste from the apply screen. From the repo root (or with `-chdir` as shown):
 
 ```bash
-gcloud storage buckets describe gs://cgep-lab-dev-dev-data-001 \
+BUCKET_URL=$(terraform -chdir=terraform/primitives/compliant-gcs output -raw bucket_url)
+KMS_KEY_ID=$(terraform -chdir=terraform/primitives/compliant-gcs output -raw kms_key_id)
+
+gcloud storage buckets describe "$BUCKET_URL" \
   --format="yaml(uniform_bucket_level_access,public_access_prevention,labels,retention_policy)"
 
-gcloud storage buckets describe gs://cgep-lab-dev-dev-data-001 \
+gcloud storage buckets describe "$BUCKET_URL" \
   --format="value(default_kms_key,versioning_enabled)"
 
-gcloud kms keys describe dev-data-001-key \
-  --keyring=dev-data-001-ring --location=us-central1 \
+# KMS_KEY_ID is a full resource name; gcloud accepts it as the key argument.
+gcloud kms keys describe "$KMS_KEY_ID" \
   --format="value(rotationPeriod,nextRotationTime)"
 ```
+
+If `gcloud kms keys describe` on your CLI build rejects the full resource name, split it into the older flags instead: `--location=us-central1 --keyring=<suffix>-ring` and the short key name `<suffix>-key`, using the same personal suffix you set in the consumer.
 
 Expected, abridged:
 
@@ -420,22 +438,22 @@ retention_policy:
   retentionPeriod: '2592000'
 uniform_bucket_level_access: true
 
-projects/.../keyRings/dev-data-001-ring/cryptoKeys/dev-data-001-key  True
+projects/.../locations/us-central1/keyRings/.../cryptoKeys/...  True
 
 7776000s   2026-07-24T...
 ```
 
-Six controls, three commands.
+Six controls, three commands. Your bucket URL will include your personal suffix rather than `dev-data-001`.
 
 ## Capture your evidence
 
-Capture the dev consumer's plan and attestation into the repo-root evidence folder for this lab:
+Capture the dev consumer's plan and attestation into the repo-root evidence folder for this lab. Use the *consumer* output name (`attestation`), not the module's internal name (`compliance_attestation`):
 
 ```bash
 # from the repo root
 mkdir -p evidence/lab-2-4
 terraform -chdir=terraform/primitives/compliant-gcs show -json tfplan > evidence/lab-2-4/plan.json
-terraform -chdir=terraform/primitives/compliant-gcs output -json compliance_attestation > evidence/lab-2-4/attestation.json
+terraform -chdir=terraform/primitives/compliant-gcs output -json attestation > evidence/lab-2-4/attestation.json
 ```
 
 The second file is the same attestation you saw on screen, captured as the machine-readable artifact a policy will check later.

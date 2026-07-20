@@ -39,13 +39,24 @@ You're building the middle two: a component definition that says "here's what my
 
 ### Step 1: Initialize a trestle workspace
 
+Work under a temporary authoring directory so trestle's full layout doesn't collide with the simpler `oscal/components/` and `oscal/profiles/` paths your capstone expects. You'll copy the finished JSON into those paths at the end.
+
 ```bash
+# from the repo root
 pip install compliance-trestle
-mkdir -p oscal && cd oscal
+mkdir -p evidence/lab-6-1
+mkdir -p .trestle-work && cd .trestle-work
 trestle init
 ```
 
 Trestle lays down an OSCAL-shaped directory: `catalogs/`, `profiles/`, `component-definitions/`, and so on. It's opinionated about structure, which is helpful, because the schema is strict and trestle keeps you inside the lines.
+
+Add `.trestle-work/` to your repo-root `.gitignore` so the working tree doesn't get committed (only the finished files under `oscal/` matter):
+
+```bash
+# from the repo root (after you're done, or do this now in another terminal)
+grep -qxF '.trestle-work/' .gitignore || echo '.trestle-work/' >> .gitignore
+```
 
 ### Step 2: Create the component-definition skeleton
 
@@ -121,7 +132,7 @@ Then add the same shape of `implemented-requirements` block for `ac-3`, `au-3`, 
 
 Read the `sc-28` block slowly, because it's the whole idea in miniature. The `control-id` says which control. The `description` says how the module satisfies it. The `terraform-resource` prop says exactly which line of code does it. And the `links[rel=evidence]` href says where the proof lives. Four facts, machine-readable, and the last one is a live pointer into your vault.
 
-> **Generate UUIDs the right way.** OSCAL requires version-4 UUIDs (the `4` and the `8/9/a/b` in specific positions matter). Don't hand-write them, or `trestle validate` will reject them with a regex error. Generate each one with `python3 -c "import uuid; print(uuid.uuid4())"`.
+> **Generate UUIDs the right way.** OSCAL requires version-4 UUIDs (the `4` and the `8/9/a/b` in specific positions matter). Don't hand-write them, or `trestle validate` will reject them with a regex error. You already need Python for trestle, so this is fine: `python3 -c "import uuid; print(uuid.uuid4())"`. On macOS/Linux you can also use `uuidgen | tr '[:upper:]' '[:lower:]'`.
 
 ### Step 4: Validate the component
 
@@ -185,7 +196,8 @@ Trestle fetches the NIST catalog, applies your selection, and writes out a *reso
 This is the part that makes OSCAL click. Take the `sc-28` requirement, follow its `links[rel=evidence].href` into the vault, and run the verify script from Lab 4.4:
 
 ```bash
-EVIDENCE_VAULT=<your-vault> bash scripts/verify-evidence.sh <run_id>
+# from the repo root; reuse VAULT/RUN_ID from Lab 4.4 if you still have them
+EVIDENCE_VAULT="$VAULT" bash scripts/verify-evidence.sh "$RUN_ID" --profile <your-sandbox>
 ```
 
 When it prints `CHAIN INTACT`, you've just done what an assessor does: started from a control claim in a document, followed a link to a real artifact, and cryptographically confirmed the artifact is authentic and unaltered. Nobody had to log into a console, and you didn't have to be in the room. (If you're doing this lab standalone without a vault bundle handy, the authoring and validation in Steps 1 through 6 still stand on their own; this step is the live demonstration of the link resolving.)
@@ -198,17 +210,18 @@ When it prints `CHAIN INTACT`, you've just done what an assessor does: started f
 
 ## Capture and commit
 
+You're still inside `.trestle-work/`. Validate, then copy the finished documents into the capstone-shaped layout at the repo root:
+
 ```bash
 trestle validate -f component-definitions/compliant-s3-v1/component-definition.json \
   > ../evidence/lab-6-1/trestle-validate.txt 2>&1
 
-# from the repo root, keep the capstone-shaped layout
 mkdir -p ../oscal/components ../oscal/profiles
 cp component-definitions/compliant-s3-v1/component-definition.json ../oscal/components/compliant-s3.json
 cp profiles/cge-p-minimum/profile.json ../oscal/profiles/cge-p-minimum.json
 
-cd ..
-git add oscal evidence/lab-6-1
+cd ..   # back to cgep-labs (repo root)
+git add oscal evidence/lab-6-1 .gitignore
 git commit -m "Lab 6.1: OSCAL component definition + profile + validation"
 git push
 ```
@@ -222,7 +235,7 @@ git push
 
 ## Troubleshooting
 
-- **`string does not match regex` on a UUID.** OSCAL requires v4 UUIDs. Generate them with `python3 -c "import uuid; print(uuid.uuid4())"`, never by hand.
+- **`string does not match regex` on a UUID.** OSCAL requires v4 UUIDs. Generate them with `python3 -c "import uuid; print(uuid.uuid4())"` (or `uuidgen`), never by hand.
 - **Validation fails on a missing field.** Run `trestle describe -t component-definition -n <name>` to see what the schema expects; it's strict but the errors are specific.
 - **An evidence URI that doesn't resolve.** OSCAL won't check that hrefs actually resolve, so a broken link is a silently useless attestation. Wire a small check into CI (or your resolve step) that confirms each evidence href points at a real vault object.
 - **Catalog import fails.** NIST's `main`-branch URLs occasionally move. Pin to a tag (e.g., `/v5.0.0/`) for stability.

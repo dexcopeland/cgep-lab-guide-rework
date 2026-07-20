@@ -90,7 +90,7 @@ A policy needs something to check. This fixture has one compliant bucket and thr
 > The original lab abbreviated the three non-compliant buckets as comments. They're written out in full here so the fixture actually plans.
 
 ```hcl
-# terraform/main.tf
+# terraform/primitives/policy-fixture/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -181,9 +181,10 @@ resource "google_compute_firewall" "open_ssh" {
 }
 ```
 
-Generate the plan JSON. This is the file your policies read:
+Generate the plan JSON. This is the file your policies read. If Application Default Credentials are stale, refresh them with `gcloud auth application-default login` first:
 
 ```bash
+# from the repo root
 cd terraform/primitives/policy-fixture
 terraform init
 terraform plan -out=tfplan -var=gcp_project=your-gcp-project
@@ -505,9 +506,13 @@ Read that carefully: each broken bucket is flagged exactly once, by the right co
 
 Add the missing pieces (an `encryption` block to `bad_no_cmek`, lock down `bad_public`, labels to `bad_no_labels`), regenerate `plan.json`, and re-run the three evals. Every deny set comes back empty. That's the full developer feedback loop, start to finish, in under a minute and with no reviewer involved. That speed is the entire argument for Policy as Code.
 
+When you're done with the demo, you can leave the fixture in either state. The unit tests in `policies/tests/` already prove each policy against hand-built inputs; the fixture plan is for the live walkthrough, not for grading.
+
 ## Capture your evidence
 
 ```bash
+# from the repo root
+mkdir -p evidence/lab-3-3
 opa test --format=json policies/ > evidence/lab-3-3/opa-test-results.json
 ```
 

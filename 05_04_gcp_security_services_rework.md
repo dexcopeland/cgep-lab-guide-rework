@@ -15,7 +15,7 @@ You need:
 - `gcloud` authenticated both ways: `gcloud auth login` and `gcloud auth application-default login` (Terraform reads the second).
 - Terraform `>= 1.6`.
 
-Substitute your project ID for `your-gcp-project` and your repo for `OWNER/REPO` throughout. This lab is self-contained; it deploys its own baseline and depends on no earlier lab's live resources.
+Substitute your project ID for `your-gcp-project` and your GitHub repo (`<your-github-org>/cgep-labs`, or whichever repo will assume the WIF identity) wherever those placeholders appear. This lab is self-contained; it deploys its own baseline and depends on no earlier lab's live resources.
 
 ## Time and cost
 
@@ -54,7 +54,7 @@ cgep-labs/
 ├── terraform/baselines/gcp/
 │   ├── main.tf
 │   ├── org_policy.tf
-│   ├── wif.tf
+│   ├── wif.tf          ← also holds the two outputs used in verify/demo
 │   ├── audit_logs.tf
 │   ├── variables.tf
 │   └── README.md
@@ -129,36 +129,9 @@ resource "google_org_policy_policy" "require_oslogin" {
 
 `enforce = "TRUE"` means rejection at the API. (If you wanted audit-only behavior without rejecting, you'd omit the rules block.)
 
-### Step 2: Apply, then test the enforcement
+### Step 2: Workload Identity Federation
 
-Apply first:
-
-```bash
-eval "$(gcloud auth application-default print-access-token >/dev/null 2>&1; echo)"  # ensure ADC is fresh
-terraform init
-terraform apply -auto-approve -var="gcp_project=your-gcp-project" -var="github_repo=OWNER/REPO"
-```
-
-Now deliberately try to violate one of the constraints (give Org Policy a few minutes to propagate first):
-
-```bash
-gcloud iam service-accounts keys create /tmp/key.json \
-  --iam-account=YOUR_SA_EMAIL --project=your-gcp-project
-```
-
-Expected:
-
-```
-ERROR: (gcloud.iam.service-accounts.keys.create) FAILED_PRECONDITION:
-Key creation is not allowed on this service account.
-constraint iam.disableServiceAccountKeyCreation
-```
-
-Sit with this for a moment, because it's the whole point of the lab. The control didn't surface three hours later as a finding to triage. The forbidden action simply did not happen. That refusal at the API is the strongest layer in defense-in-depth: there's nothing to remediate because there's nothing to remediate.
-
-### Step 3: Workload Identity Federation
-
-Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Create `wif.tf`:
+Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Create `wif.tf`. Notice both the condition and the IAM binding read `var.github_repo` — set that once at apply time and you don't have to hunt for hardcoded repo strings:
 
 ```hcl
 resource "google_iam_workload_identity_pool" "github" {
@@ -176,7 +149,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.actor"      = "assertion.actor"
   }
 
-  attribute_condition = "assertion.repository == \"GRCEngClub/cgep-app-starter\""
+  attribute_condition = "assertion.repository == \"${var.github_repo}\""
 
   oidc { issuer_uri = "https://token.actions.githubusercontent.com" }
 }
@@ -197,14 +170,24 @@ resource "google_service_account_iam_binding" "wif_user" {
   role               = "roles/iam.workloadIdentityUser"
 
   members = [
-    "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/GRCEngClub/cgep-app-starter",
+    "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}",
   ]
+}
+
+output "wif_service_account_email" {
+  value       = google_service_account.gha.email
+  description = "Service account email for the Org Policy key-creation demo and for GitHub Actions auth."
+}
+
+output "workload_identity_provider" {
+  value       = google_iam_workload_identity_pool_provider.github.name
+  description = "Full provider resource name for google-github-actions/auth."
 }
 ```
 
-> **Change the repository to yours, and never loosen the condition.** The `attribute_condition` and the binding both name `GRCEngClub/cgep-app-starter`. Replace that with your `OWNER/REPO` in both places. Without a tight condition, *any* GitHub repository on the public internet could present a token and impersonate your service account. This single line is the GCP equivalent of the scoped `sub` you set in the AWS OIDC trust back in Lab 4.3.
+> **Never loosen the condition.** `var.github_repo` must be your real `OWNER/REPO` (for lab work, your `cgep-labs` fork or the capstone repo you'll call from CI). Without a tight condition, *any* GitHub repository on the public internet could present a token and impersonate your service account. This single line is the GCP equivalent of the scoped `sub` you set in the AWS OIDC trust back in Lab 4.3.
 
-A workflow then authenticates with no key on disk:
+A workflow then authenticates with no key on disk. After you apply, feed it the outputs rather than hand-building the resource names:
 
 ```yaml
 permissions:
@@ -214,7 +197,9 @@ permissions:
 steps:
   - uses: google-github-actions/auth@v2
     with:
+      # terraform output -raw workload_identity_provider
       workload_identity_provider: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/providers/github
+      # terraform output -raw wif_service_account_email
       service_account: cgep-grc-gate-sa@your-gcp-project.iam.gserviceaccount.com
 
   - run: gcloud storage ls
@@ -222,7 +207,7 @@ steps:
 
 The token is minted when the job starts, expires after an hour, and never touches the filesystem. Same posture as the AWS OIDC pattern, different cloud, which is exactly the portability a GRC engineer wants.
 
-### Step 4: Enable Data Access audit logs
+### Step 3: Enable Data Access audit logs
 
 These are off by default, and that default is the single most common GCP audit finding, because almost nobody turns them on. Create `audit_logs.tf`:
 
@@ -252,12 +237,44 @@ resource "google_project_iam_audit_config" "iam" {
 }
 ```
 
-Confirm a read shows up in the logs:
+### Step 4: Apply once, then test Org Policy enforcement
+
+With `org_policy.tf`, `wif.tf`, and `audit_logs.tf` in place, apply the whole baseline. Refresh Application Default Credentials first if Terraform has started failing auth:
 
 ```bash
-gsutil ls gs://your-test-bucket
-sleep 30  # log delivery latency
-gcloud logging read 'protoPayload.serviceName="storage.googleapis.com" AND \
+# from terraform/baselines/gcp
+gcloud auth application-default login   # only if ADC is stale
+terraform init
+terraform apply -auto-approve \
+  -var="gcp_project=your-gcp-project" \
+  -var="github_repo=<your-github-org>/cgep-labs"
+
+SA_EMAIL=$(terraform output -raw wif_service_account_email)
+```
+
+Give Org Policy a few minutes to propagate, then deliberately try to create a key on the service account you just created:
+
+```bash
+gcloud iam service-accounts keys create /tmp/key.json \
+  --iam-account="$SA_EMAIL" --project=your-gcp-project
+```
+
+Expected:
+
+```
+ERROR: (gcloud.iam.service-accounts.keys.create) FAILED_PRECONDITION:
+Key creation is not allowed on this service account.
+constraint iam.disableServiceAccountKeyCreation
+```
+
+Sit with this for a moment, because it's the whole point of the lab. The control didn't surface three hours later as a finding to triage. The forbidden action simply did not happen. That refusal at the API is the strongest layer in defense-in-depth: there's nothing to remediate because there's nothing to remediate.
+
+Optional: if you already have a GCS bucket in the project, list it and confirm a Data Access log shows up (delivery can take ~30 seconds):
+
+```bash
+gcloud storage ls gs://your-test-bucket
+sleep 30
+gcloud logging read 'protoPayload.serviceName="storage.googleapis.com" AND
   protoPayload.methodName=~"storage.objects.list"' --limit 5 --format=json
 ```
 
@@ -274,18 +291,22 @@ For a standalone project with no Org, SCC isn't available, and the Org Policy en
 ## Verification
 
 ```bash
+# still inside terraform/baselines/gcp
 gcloud org-policies list --project=your-gcp-project | grep -E "uniformBucket|disableServiceAccount|requireOsLogin"
 
 gcloud iam workload-identity-pools list --location=global --project=your-gcp-project
 
-gcloud projects get-iam-policy your-gcp-project --format=json \
-  | python3 -c 'import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get("auditConfigs",[]),indent=2))' \
+# gcloud can project just the auditConfigs field — no Python required
+mkdir -p ../../../evidence/lab-5-4
+gcloud projects get-iam-policy your-gcp-project \
+  --format="json(auditConfigs)" \
   > ../../../evidence/lab-5-4/iam-policy.json
 cat ../../../evidence/lab-5-4/iam-policy.json
 
 # the forbidden action should still fail
+SA_EMAIL=$(terraform output -raw wif_service_account_email)
 gcloud iam service-accounts keys create /tmp/k.json \
-  --iam-account=cgep-grc-gate-sa@your-gcp-project.iam.gserviceaccount.com \
+  --iam-account="$SA_EMAIL" \
   --project=your-gcp-project
 # Expect: FAILED_PRECONDITION
 ```
@@ -303,7 +324,9 @@ git push
 
 ```bash
 cd terraform/baselines/gcp
-terraform destroy -auto-approve -var="gcp_project=your-gcp-project" -var="github_repo=OWNER/REPO"
+terraform destroy -auto-approve \
+  -var="gcp_project=your-gcp-project" \
+  -var="github_repo=<your-github-org>/cgep-labs"
 ```
 
 Two things to know:

@@ -52,7 +52,7 @@ OIDC replaces that with something better. GitHub and AWS establish a trust relat
 This small Terraform creates the OIDC provider and a read-only role bound to your repository. Put it in a primitive, since you apply it once. Create `terraform/primitives/oidc-trust/main.tf`:
 
 ```hcl
-# oidc/main.tf
+# terraform/primitives/oidc-trust/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -96,33 +96,38 @@ resource "aws_iam_role_policy_attachment" "readonly" {
 output "role_arn" { value = aws_iam_role.grc_gate.arn }
 ```
 
-Apply it:
+Apply it. Substitute your GitHub org (or username) and the `cgep-labs` repo name:
 
 ```bash
+# from the repo root
 cd terraform/primitives/oidc-trust
+eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
 terraform init
-terraform apply -var=github_org=YourOrg -var=github_repo=YourRepo
+terraform apply -var=github_org=<your-github-org> -var=github_repo=cgep-labs
+ROLE_ARN=$(terraform output -raw role_arn)
 cd ../../..
 ```
 
 If the account already has a GitHub OIDC provider (some other automation may have created one), Terraform will error on the duplicate. Import it instead of recreating:
 
 ```bash
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile <your-sandbox>)
 terraform import aws_iam_openid_connect_provider.github \
-  arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com
-terraform apply -var=github_org=YourOrg -var=github_repo=YourRepo
+  "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+terraform apply -var=github_org=<your-github-org> -var=github_repo=cgep-labs
+ROLE_ARN=$(terraform output -raw role_arn)
 ```
 
 > The `StringLike` condition on `sub` is what binds this role to one repository. Do not loosen it to `repo:*:*`. A role trusted by every repo on GitHub is a role trusted by every attacker who can open a public repo. This single line is the difference between scoped trust and an open door.
 
 ### Step 2: Tell GitHub which role to assume
 
-Save the role ARN as a repo variable so the workflow can read it:
+Save the role ARN as a repo variable so the workflow can read it. Use the `$ROLE_ARN` you just captured (no copy-paste from the console):
 
 ```bash
 gh variable set AWS_ROLE_ARN \
-  --body "arn:aws:iam::ACCOUNT:role/cgep-grc-gate" \
-  --repo YourOrg/YourRepo
+  --body "$ROLE_ARN" \
+  --repo <your-github-org>/cgep-labs
 ```
 
 ### Step 3: Write the workflow
@@ -180,46 +185,43 @@ jobs:
         run: |
           terraform init -input=false
           terraform validate
-          terraform plan -out=tfplan -no-color | tee plan.txt
+          # Same vars as Lab 2.3 / 3.4. -input=false means missing vars fail the job
+          # instead of hanging on an interactive prompt the runner can't answer.
+          terraform plan -out=tfplan -input=false -no-color \
+            -var="project_name=cgep-lab" -var="environment=dev" | tee plan.txt
           terraform show -json tfplan > plan.json
 
       - name: Conftest policy gate
         id: conftest
         run: |
           mkdir -p evidence/lab-4-3
+          EXIT=0
           {
             echo "["
             FIRST=1
-            for ns in compliance.sc28_aws compliance.ac3_aws compliance.cm6_aws compliance.cm6 ; do
+            # AWS namespaces only (same set as scripts/policy-gate.sh from Lab 3.4).
+            for ns in compliance.sc28_aws compliance.ac3_aws compliance.cm6_aws ; do
               [[ $FIRST -eq 1 ]] && FIRST=0 || printf ","
-              conftest test --policy policies --namespace "$ns" --output=json "$TF_WORKING_DIR/plan.json" || true
+              set +e
+              OUT=$(conftest test --policy policies --namespace "$ns" --output=json "$TF_WORKING_DIR/plan.json")
+              STATUS=$?
+              set -e
+              [[ $STATUS -eq 0 ]] || EXIT=1
+              printf '%s' "$OUT"
             done
+            echo
             echo "]"
           } > evidence/lab-4-3/conftest-results.json
-          python3 -c '
-          import json, sys
-          d = json.load(open("evidence/lab-4-3/conftest-results.json"))
-          fails = sum(len(r.get("failures") or []) for results in d for r in results)
-          print(f"conftest failures: {fails}")
-          sys.exit(0 if fails == 0 else 1)
-          '
+          if [[ $EXIT -eq 0 ]]; then echo "conftest: PASS"; else echo "conftest: FAIL"; exit 1; fi
 
       - name: tfsec scan
         id: tfsec
         if: always()
         run: |
+          # Write SARIF for the artifact, then re-run with a severity floor so
+          # tfsec's own exit code is the gate (no JSON parsing required).
           tfsec "$TF_WORKING_DIR" --format sarif --out evidence/lab-4-3/tfsec.sarif || true
-          python3 -c '
-          import json, sys
-          d = json.load(open("evidence/lab-4-3/tfsec.sarif"))
-          high = sum(
-              1 for run in d.get("runs", [])
-              for r in run.get("results", [])
-              if (r.get("level") or "").lower() in ("error","critical","high")
-          )
-          print(f"tfsec high+critical: {high}")
-          sys.exit(0 if high == 0 else 1)
-          '
+          tfsec "$TF_WORKING_DIR" --minimum-severity HIGH
 
       - name: Copy plan into evidence
         if: always()
@@ -240,12 +242,13 @@ Four choices in this file are worth understanding, because they're the differenc
 
 - **`permissions: id-token: write`** is what lets the credentials step mint an OIDC token. Leave it out and OIDC fails silently with a misleading error. This is the single most common first-run problem.
 - **`if: always()`** on the scan, copy, and upload steps. Without it, a Conftest failure ends the job immediately and you lose the evidence. The entire value of CI evidence is that it survives the failure it documents, so these steps must run even after a gate fails.
-- **`|| true`** after `conftest` and `tfsec`. Both tools exit non-zero when they find something, but you want their output captured regardless. The real pass/fail decision is made by the small `python3` checks right after, which is where the build is allowed to fail.
+- **Tool-native exit codes for the gate.** Conftest exits non-zero on policy failures; `tfsec --minimum-severity HIGH` exits non-zero on high/critical findings. The SARIF/`--output=json` writes are for the evidence artifact; the tools themselves decide pass/fail. No Python (or other JSON parser) is required on the runner.
 - **Pinned versions** on every action and download (`@v4`, `v0.50.0`, `v1.28.14`). Floating tags change under you. For supply-chain safety, the more cautious choice is pinning third-party actions to a specific commit SHA rather than a moving tag.
 
 ### Step 4: Open a PR and watch it run
 
 ```bash
+# from the repo root
 git checkout -b add-grc-gate
 git add .github/workflows/grc-gate.yml policies/ scripts/ terraform/primitives/oidc-trust/
 git commit -m "Add GRC evidence pipeline"
