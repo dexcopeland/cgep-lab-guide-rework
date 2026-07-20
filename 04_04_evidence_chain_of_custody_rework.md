@@ -60,6 +60,35 @@ Normally signing means managing private keys, which is its own security headache
      → "CHAIN INTACT"
 ```
 
+## Where these files live
+
+```
+cgep-labs/
+├── .github/workflows/
+│   └── grc-gate.yml              ← edit: add Cosign + sign/upload + enforce-gate
+├── scripts/
+│   └── verify-evidence.sh        ← new in this lab
+└── evidence/lab-4-4/
+    └── receipt.json              ← filled in after a signed run
+```
+
+You already have `grc-gate.yml` from Lab 4.3 and the vault from Lab 2.5. This lab adds the verify script and extends the workflow.
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates the new paths; the workflow file should already exist from Lab 4.3.
+
+```bash
+# from the repo root
+mkdir -p scripts evidence/lab-4-4 .github/workflows
+
+touch scripts/verify-evidence.sh
+chmod +x scripts/verify-evidence.sh
+
+# Confirm the workflow you will edit is present
+ls -la .github/workflows/grc-gate.yml scripts/verify-evidence.sh evidence/lab-4-4
+```
+
 ## Step-by-step walkthrough
 
 ### Step 0: Redeploy the vault
@@ -78,7 +107,7 @@ gh variable set EVIDENCE_VAULT --body "$VAULT" --repo <your-github-org>/cgep-lab
 
 ### Step 1: Add signing to the workflow
 
-Two additions to `.github/workflows/grc-gate.yml`. First, install Cosign (add it alongside the other tool-install steps):
+Two additions to **`.github/workflows/grc-gate.yml`** (the file from Lab 4.3 — open that existing file, don't create a second one). First, install Cosign (add it alongside the other tool-install steps):
 
 ```yaml
 - name: Install Cosign
@@ -184,7 +213,7 @@ Two resources only: the vault and its objects. A role that can write evidence sh
 
 ### Step 3: The verify script
 
-This is the script an auditor runs. Three checks, three ways to fail, one line of success. Create `scripts/verify-evidence.sh`:
+This is the script an auditor runs. Three checks, three ways to fail, one line of success. Open **`scripts/verify-evidence.sh`** from the scaffold and paste:
 
 ```bash
 #!/usr/bin/env bash

@@ -59,19 +59,36 @@ cgep-labs/
 │   ├── variables.tf
 │   └── README.md
 └── evidence/lab-5-4/
-    └── iam-policy.json
+    └── iam-policy.json   ← filled in when you capture evidence
 ```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
 
 ```bash
 # from the repo root
 mkdir -p terraform/baselines/gcp evidence/lab-5-4
+
+touch \
+  terraform/baselines/gcp/main.tf \
+  terraform/baselines/gcp/org_policy.tf \
+  terraform/baselines/gcp/wif.tf \
+  terraform/baselines/gcp/audit_logs.tf \
+  terraform/baselines/gcp/variables.tf \
+  terraform/baselines/gcp/README.md
+
+find terraform/baselines/gcp evidence/lab-5-4 -type f | sort
+
+# Most of the steps below edit files in this folder:
 cd terraform/baselines/gcp
+ls
 ```
 
-Add the shared scaffolding the snippets below assume, in `main.tf` and `variables.tf`:
+Open **`terraform/baselines/gcp/main.tf`** and **`terraform/baselines/gcp/variables.tf`** first — the snippets below assume these shared pieces:
 
 ```hcl
-# main.tf
+# terraform/baselines/gcp/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -86,7 +103,7 @@ provider "google" {
 ```
 
 ```hcl
-# variables.tf
+# terraform/baselines/gcp/variables.tf
 variable "gcp_project" { type = string }
 variable "github_repo" {
   type        = string
@@ -96,9 +113,10 @@ variable "github_repo" {
 
 ### Step 1: Org Policy at project scope
 
-Three constraints, each enforced (rejected) at the API. Create `org_policy.tf`:
+Three constraints, each enforced (rejected) at the API. Open **`terraform/baselines/gcp/org_policy.tf`** and paste:
 
 ```hcl
+# terraform/baselines/gcp/org_policy.tf
 resource "google_org_policy_policy" "uniform_bucket_access" {
   name   = "projects/${var.gcp_project}/policies/storage.uniformBucketLevelAccess"
   parent = "projects/${var.gcp_project}"
@@ -131,9 +149,10 @@ resource "google_org_policy_policy" "require_oslogin" {
 
 ### Step 2: Workload Identity Federation
 
-Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Create `wif.tf`. Notice both the condition and the IAM binding read `var.github_repo` — set that once at apply time and you don't have to hunt for hardcoded repo strings:
+Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Open **`terraform/baselines/gcp/wif.tf`**. Notice both the condition and the IAM binding read `var.github_repo` — set that once at apply time and you don't have to hunt for hardcoded repo strings:
 
 ```hcl
+# terraform/baselines/gcp/wif.tf
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
   display_name              = "GitHub Actions"
@@ -209,9 +228,10 @@ The token is minted when the job starts, expires after an hour, and never touche
 
 ### Step 3: Enable Data Access audit logs
 
-These are off by default, and that default is the single most common GCP audit finding, because almost nobody turns them on. Create `audit_logs.tf`:
+These are off by default, and that default is the single most common GCP audit finding, because almost nobody turns them on. Open **`terraform/baselines/gcp/audit_logs.tf`** and paste:
 
 ```hcl
+# terraform/baselines/gcp/audit_logs.tf
 resource "google_project_iam_audit_config" "storage" {
   project = var.gcp_project
   service = "storage.googleapis.com"

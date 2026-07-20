@@ -39,6 +39,9 @@ cgep-labs/
 ├── terraform/
 │   └── primitives/
 │       └── evidence-vault/     ← the Object Lock vault (you build this here)
+│           ├── main.tf
+│           ├── variables.tf
+│           └── outputs.tf
 ├── scripts/
 │   └── capture-evidence.sh     ← the capture script (you write this here)
 └── evidence/
@@ -47,6 +50,25 @@ cgep-labs/
 ```
 
 The vault you build in this lab is not a throwaway. It is the same evidence vault your capstone uses, so build it carefully.
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
+
+```bash
+# from the repo root
+mkdir -p terraform/primitives/evidence-vault scripts evidence/lab-2-5
+
+touch \
+  terraform/primitives/evidence-vault/main.tf \
+  terraform/primitives/evidence-vault/variables.tf \
+  terraform/primitives/evidence-vault/outputs.tf \
+  scripts/capture-evidence.sh
+
+chmod +x scripts/capture-evidence.sh
+
+find terraform/primitives/evidence-vault scripts/capture-evidence.sh evidence/lab-2-5 | sort
+```
 
 ## Step-by-step walkthrough
 
@@ -59,7 +81,7 @@ This lab captures evidence *from* a live Terraform workspace. On a fresh day, th
 cd terraform/primitives/compliant-s3
 eval "$(aws configure export-credentials --profile <your-sandbox> --format env)"  # if you use SSO
 terraform init
-terraform apply -auto-approve
+terraform apply -auto-approve -var="project_name=cgep-lab" -var="environment=dev"
 cd ../../..   # back to the repo root
 ```
 
@@ -67,10 +89,10 @@ Now there's a live, compliant workspace at `terraform/primitives/compliant-s3` w
 
 ### Step 1: Build the evidence vault
 
-Object Lock has one hard rule: it must be enabled when the bucket is created. You cannot add it to an existing bucket. So this is a fresh bucket, built to be immutable from birth. Create `terraform/primitives/evidence-vault/main.tf`:
+Object Lock has one hard rule: it must be enabled when the bucket is created. You cannot add it to an existing bucket. So this is a fresh bucket, built to be immutable from birth. Open the empty **`terraform/primitives/evidence-vault/main.tf`** from the scaffold and paste:
 
 ```hcl
-# terraform/main.tf
+# terraform/primitives/evidence-vault/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -158,8 +180,10 @@ resource "aws_s3_bucket_policy" "vault" {
 }
 ```
 
+Open **`terraform/primitives/evidence-vault/variables.tf`** next:
+
 ```hcl
-# terraform/variables.tf
+# terraform/primitives/evidence-vault/variables.tf
 variable "project_name" {
   type    = string
   default = "cgep-lab"
@@ -182,8 +206,10 @@ variable "retention_days" {
 }
 ```
 
+Open **`terraform/primitives/evidence-vault/outputs.tf`**:
+
 ```hcl
-# terraform/outputs.tf
+# terraform/primitives/evidence-vault/outputs.tf
 output "vault_name" {
   value       = aws_s3_bucket.vault.id
   description = "S3 bucket name of the evidence vault. Feed this to capture-evidence.sh --vault."
@@ -194,7 +220,7 @@ output "vault_name" {
 
 ### Step 2: Write `capture-evidence.sh`
 
-One bash script. It reads a workspace, builds a manifest of hashes, uploads a bundle to the vault, and prints a one-line JSON receipt that a pipeline can capture later. Create `scripts/capture-evidence.sh`:
+One bash script. It reads a workspace, builds a manifest of hashes, uploads a bundle to the vault, and prints a one-line JSON receipt that a pipeline can capture later. Open the empty **`scripts/capture-evidence.sh`** from the scaffold and paste:
 
 ```bash
 #!/usr/bin/env bash

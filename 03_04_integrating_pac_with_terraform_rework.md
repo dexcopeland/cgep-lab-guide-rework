@@ -35,6 +35,43 @@ You also need your `policies/` library from Lab 3.3 already in the repo (it is, 
                                                                 violation
 ```
 
+## Where these files live
+
+```
+cgep-labs/
+├── policies/
+│   ├── sc28_encryption_aws.rego      ← new in this lab
+│   ├── ac3_no_public_aws.rego        ← new in this lab
+│   ├── cm6_required_tags_aws.rego    ← new in this lab
+│   └── README.md                     ← update for AWS variants
+├── scripts/
+│   └── policy-gate.sh                ← new in this lab
+└── evidence/lab-3-4/
+    ├── conftest-pass.json            ← filled in when you run the gate
+    └── conftest-fail.json            ← filled in when you run the gate
+```
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
+
+```bash
+# from the repo root
+mkdir -p policies scripts evidence/lab-3-4
+
+touch \
+  policies/sc28_encryption_aws.rego \
+  policies/ac3_no_public_aws.rego \
+  policies/cm6_required_tags_aws.rego \
+  scripts/policy-gate.sh
+
+# README may already exist from Lab 3.3; create it only if missing
+touch policies/README.md
+chmod +x scripts/policy-gate.sh
+
+find policies/*_aws.rego scripts/policy-gate.sh evidence/lab-3-4 | sort
+```
+
 ## Step-by-step walkthrough
 
 ### Step 1: Confirm the 3.3 library still passes
@@ -76,6 +113,8 @@ The SC-28 and AC-3 rules pass, but they pass with *zero coverage*. They look for
 This is the lesson. The control ID `SC-28` is portable; the rule `resource.type == "google_storage_bucket"` is not. You have two choices: generalize each rule to handle every cloud's types, or write per-cloud variants. Variants keep each rule short and readable, so that's what you'll do, and you'll keep the same control IDs so the library stays organized by control rather than by cloud.
 
 ### Step 4: AWS variant of SC-28
+
+Open **`policies/sc28_encryption_aws.rego`** from the scaffold and paste:
 
 ```rego
 # policies/sc28_encryption_aws.rego
@@ -122,7 +161,7 @@ references_bucket(ref, bucket_addr) if ref == sprintf("%s.bucket", [bucket_addr]
 
 ### Step 5: AWS variant of AC-3
 
-This one is stricter than the GCP version: it requires the public-access-block resource to exist *and* all four of its flags to be `true`.
+This one is stricter than the GCP version: it requires the public-access-block resource to exist *and* all four of its flags to be `true`. Open **`policies/ac3_no_public_aws.rego`** and paste:
 
 ```rego
 # policies/ac3_no_public_aws.rego
@@ -183,7 +222,7 @@ Notice this rule reads from *both* halves of the plan JSON. It uses `configurati
 
 ### Step 6: AWS variant of CM-6
 
-GCP used `labels`; AWS uses `tags`. With provider `default_tags` turned on (as in your Lab 2.3 code), the merged set lands in `tags_all`.
+GCP used `labels`; AWS uses `tags`. With provider `default_tags` turned on (as in your Lab 2.3 code), the merged set lands in `tags_all`. Open **`policies/cm6_required_tags_aws.rego`** and paste:
 
 ```rego
 # policies/cm6_required_tags_aws.rego
@@ -293,7 +332,7 @@ The exit code is non-zero, which is what makes this a *gate*: in CI, a non-zero 
 
 ### Step 9: The wrapper script
 
-Your CI workflow in Lab 4.3 calls one script. Build it now so CI has something stable to call. Create `scripts/policy-gate.sh`:
+Your CI workflow in Lab 4.3 calls one script. Build it now so CI has something stable to call. Open **`scripts/policy-gate.sh`** from the scaffold and paste:
 
 ```bash
 #!/usr/bin/env bash

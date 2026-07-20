@@ -65,20 +65,49 @@ The module is a reusable template, so it goes under `terraform/modules/`. The co
 
 ```
 cgep-labs/
-└── terraform/
-    ├── modules/
-    │   └── compliant-gcs-bucket/   ← the module (the security floor)
-    │       ├── main.tf
-    │       ├── variables.tf
-    │       ├── outputs.tf
-    │       └── README.md
-    └── primitives/
-        ├── compliant-gcs/          ← consumer: dev (you apply this)
-        ├── compliant-gcs-prod/     ← consumer: prod (you only plan this)
-        └── compliant-gcs-negative/ ← the validation-failure demo (plan only)
+├── terraform/
+│   ├── modules/
+│   │   └── compliant-gcs-bucket/   ← the module (the security floor)
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       ├── outputs.tf
+│   │       └── README.md
+│   └── primitives/
+│       ├── compliant-gcs/          ← consumer: dev (you apply this)
+│       │   └── main.tf
+│       ├── compliant-gcs-prod/     ← consumer: prod (you only plan this)
+│       │   └── main.tf
+│       └── compliant-gcs-negative/ ← the validation-failure demo (plan only)
+│           └── main.tf
+└── evidence/lab-2-4/               ← filled in when you capture evidence
 ```
 
 The module and the consumers are separated so the distinction stays visible. A consumer is a few lines of business config. The module is where the controls live.
+
+### Scaffold this lab's empty files
+
+Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
+
+```bash
+# from the repo root
+mkdir -p \
+  terraform/modules/compliant-gcs-bucket \
+  terraform/primitives/compliant-gcs \
+  terraform/primitives/compliant-gcs-prod \
+  terraform/primitives/compliant-gcs-negative \
+  evidence/lab-2-4
+
+touch \
+  terraform/modules/compliant-gcs-bucket/main.tf \
+  terraform/modules/compliant-gcs-bucket/variables.tf \
+  terraform/modules/compliant-gcs-bucket/outputs.tf \
+  terraform/modules/compliant-gcs-bucket/README.md \
+  terraform/primitives/compliant-gcs/main.tf \
+  terraform/primitives/compliant-gcs-prod/main.tf \
+  terraform/primitives/compliant-gcs-negative/main.tf
+
+find terraform/modules/compliant-gcs-bucket terraform/primitives/compliant-gcs* evidence/lab-2-4 -type f | sort
+```
 
 ## Step-by-step walkthrough
 
@@ -86,10 +115,12 @@ The module and the consumers are separated so the distinction stays visible. A c
 
 A module is just a directory of Terraform with a clear interface: inputs (`variables.tf`), outputs (`outputs.tf`), and a body (`main.tf`). The body decides what's hardcoded. The interface decides what consumers are allowed to change. The compliance trick is to hardcode the security baseline in the body and expose only business settings through the interface. A consumer can choose the environment and the retention period; it cannot choose to turn off encryption, because that choice was never offered.
 
-### Step 1: Build `terraform/modules/compliant-gcs-bucket/main.tf`
+### Step 1: Fill in `terraform/modules/compliant-gcs-bucket/main.tf`
+
+Open the empty **`terraform/modules/compliant-gcs-bucket/main.tf`** from the scaffold and paste:
 
 ```hcl
-# main.tf
+# terraform/modules/compliant-gcs-bucket/main.tf
 terraform {
   required_version = ">= 1.6"
   required_providers {
@@ -167,12 +198,12 @@ resource "google_storage_bucket" "bucket" {
 
 The line doing the most compliance work is `effective_labels = merge(var.labels, local.required_labels)`. A consumer can pass in extra labels through `var.labels`, but the four required compliance labels are merged on *top*, so a consumer can add labels and cannot suppress the required ones. That asymmetry, add-but-not-remove, is the pattern you'll reuse every time you encode a control in a module.
 
-### Step 2: Build `variables.tf` with validation
+### Step 2: Fill in `variables.tf` with validation
 
-The `validation` blocks here are compliance running at plan time. The most important one refuses to let a production bucket have a short retention, before any resource exists.
+Open **`terraform/modules/compliant-gcs-bucket/variables.tf`**. The `validation` blocks here are compliance running at plan time. The most important one refuses to let a production bucket have a short retention, before any resource exists.
 
 ```hcl
-# variables.tf
+# terraform/modules/compliant-gcs-bucket/variables.tf
 variable "gcp_project" {
   type        = string
   description = "GCP project ID where the bucket and KMS resources will live."
@@ -241,12 +272,12 @@ variable "labels" {
 
 > **Why two location variables.** GCS buckets accept multi-region names like `US` and `EU`. KMS keyrings do not; they need a single region like `us-central1`. If you set both to `US`, KMS rejects it with `KMS_RESOURCE_NOT_FOUND_IN_LOCATION`. Splitting them into two variables, both defaulting to `us-central1`, keeps that honest.
 
-### Step 3: Build `outputs.tf` returning compliance evidence
+### Step 3: Fill in `outputs.tf` returning compliance evidence
 
-Most of these outputs are identifiers. The interesting one is `compliance_attestation`, a computed map that states, in machine-readable form, exactly which controls this module enforced.
+Open **`terraform/modules/compliant-gcs-bucket/outputs.tf`**. Most of these outputs are identifiers. The interesting one is `compliance_attestation`, a computed map that states, in machine-readable form, exactly which controls this module enforced.
 
 ```hcl
-# outputs.tf
+# terraform/modules/compliant-gcs-bucket/outputs.tf
 output "bucket_url" {
   value       = google_storage_bucket.bucket.url
   description = "gs:// URL of the compliant bucket."
@@ -282,7 +313,7 @@ That `compliance_attestation` is the bridge to later labs. In Chapter 3 a Rego p
 
 ### Step 4: Write the dev consumer
 
-Create `terraform/primitives/compliant-gcs/main.tf`. This is the whole consumer.
+Open **`terraform/primitives/compliant-gcs/main.tf`** (scaffolded earlier). This is the whole consumer.
 
 ```hcl
 # terraform/primitives/compliant-gcs/main.tf
@@ -321,10 +352,10 @@ The `source = "../../modules/compliant-gcs-bucket"` is a relative path: from `te
 
 ### Step 5: Write the prod consumer (plan only)
 
-Copy the dev consumer to `terraform/primitives/compliant-gcs-prod/` and swap the business settings. Same module, same security floor, different retention. Keep the same provider block and the same three outputs (`attestation`, `bucket_url`, `kms_key_id`).
+Open **`terraform/primitives/compliant-gcs-prod/main.tf`**. Paste the same provider block and outputs as the dev consumer, then use this module block — same security floor, different retention:
 
 ```hcl
-# terraform/primitives/compliant-gcs-prod/main.tf  (module block only; keep provider + outputs)
+# terraform/primitives/compliant-gcs-prod/main.tf  (module block; also include provider + outputs from Step 4)
 module "data_bucket" {
   source = "../../modules/compliant-gcs-bucket"
 
@@ -369,10 +400,10 @@ That block is the SC-12 / SC-13 / SC-28 / AC-3 / CM-6 / AU-11 attestation in mac
 
 ### Step 7: The negative test
 
-This is the lesson of the lab, so don't skip it. Copy the dev consumer to `terraform/primitives/compliant-gcs-negative/`, keep the provider and outputs, and change only the module inputs so prod gets a too-short retention. Then run plan from that folder:
+This is the lesson of the lab, so don't skip it. Open **`terraform/primitives/compliant-gcs-negative/main.tf`**, paste the same provider and outputs as the dev consumer, and use this module block so prod gets a too-short retention. Then run plan from that folder:
 
 ```hcl
-# terraform/primitives/compliant-gcs-negative/main.tf  (module block only)
+# terraform/primitives/compliant-gcs-negative/main.tf  (module block; also include provider + outputs from Step 4)
 module "data_bucket" {
   source = "../../modules/compliant-gcs-bucket"
 
@@ -458,9 +489,12 @@ terraform -chdir=terraform/primitives/compliant-gcs output -json attestation > e
 
 The second file is the same attestation you saw on screen, captured as the machine-readable artifact a policy will check later.
 
+Before you commit, open **`terraform/modules/compliant-gcs-bucket/README.md`** (scaffolded empty) and write one short paragraph listing the controls the module enforces: SC-12, SC-13, SC-28, AU-11, CM-6, AC-3.
+
 ## Commit your work
 
 ```bash
+# from the repo root
 git add terraform/modules/compliant-gcs-bucket terraform/primitives/compliant-gcs* evidence/lab-2-4
 git commit -m "Lab 2.4: compliant GCS module + consumers + evidence"
 git push
