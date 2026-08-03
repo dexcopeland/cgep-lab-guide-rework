@@ -14,6 +14,9 @@ The student-facing multi-page guide lives in this repository’s
 
 Do **not** edit lab pages in the Wiki UI — they are regenerated and overwritten on publish.
 
+Wiki links use GitHub/Gollum syntax: `[[Page-Name]]` or `[[Label|Page-Name]]`
+(label first, page second — the reverse of MediaWiki).
+
 ## Local wiki build
 
 ```bash

@@ -62,4 +62,5 @@ jobs:
           path: .wiki-build
           strategy: clone
           disable-empty-commits: true
-          # preprocess true is fine; pages already use [[Wiki Links]]
+          # Pages already use Gollum [[Label|Page]] / [[Page]] links
+          preprocess: false
