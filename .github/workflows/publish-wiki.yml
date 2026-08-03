@@ -34,6 +34,28 @@ jobs:
           chmod +x scripts/build-wiki.sh scripts/test-build-wiki.sh
           ./scripts/test-build-wiki.sh
 
+      - name: Require initialized wiki remote
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          wiki_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.wiki.git"
+          if ! git ls-remote "$wiki_url" HEAD >/dev/null 2>&1; then
+            cat <<EOF >&2
+          error: GitHub Wiki backend is not initialized yet.
+
+          The build succeeded, but publish needs ${GITHUB_REPOSITORY}.wiki.git,
+          which GitHub only creates after the first Wiki page exists.
+
+          Fix (one-time):
+            1. Open ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/wiki
+            2. Create any starter page (title can be Home)
+            3. Re-run this workflow (Actions → Publish wiki → Run workflow)
+          EOF
+            exit 1
+          fi
+          echo "Wiki remote is reachable: $wiki_url"
+
       - name: Publish to GitHub Wiki
         # Pin to immutable SHA (v5.0.6); do not use a floating @v5 tag with contents:write
         uses: Andrew-Chen-Wang/github-wiki-action@1bbb4280446f9630e8e21a18012cbacf3b0f992e

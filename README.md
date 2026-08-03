@@ -32,8 +32,14 @@ You can also run the workflow manually via **Actions → Publish wiki → Run wo
 ### One-time prerequisite
 
 GitHub only creates the `*.wiki.git` backend after the first Wiki page exists.
-If publish fails on a missing wiki repo, open the Wiki tab once and create any
-starter page, then re-run the workflow.
+Until then, **Publish wiki** will fail at the “Require initialized wiki remote”
+step (or the publish step) with `Repository not found` for
+`cgep-lab-guide-rework.wiki.git`.
+
+Fix once:
+1. Open https://github.com/dexcopeland/cgep-lab-guide-rework/wiki
+2. Create any starter page (Home is fine)
+3. Re-run **Actions → Publish wiki → Run workflow**
 
 ### Token note
 
