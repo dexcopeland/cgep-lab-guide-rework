@@ -109,8 +109,11 @@ scripts/
   build-wiki.sh             # assemble staging dir
 .github/workflows/
   publish-wiki.yml          # build + push to wiki.git
+.gitignore                  # ignore .wiki-build/ staging output
 README.md                   # brief pointer to wiki + publish notes
 ```
+
+Getting-Started content is intentionally duplicated from Lab 2.3 Parts 1–2 so first-time setup lives on one wiki page; Lab 2.3 is not slimmed in the first implementation PR.
 
 ## Build pipeline
 
@@ -130,7 +133,7 @@ The script must be runnable locally for dry-runs without network access.
 ### `.github/workflows/publish-wiki.yml`
 
 - **Triggers:**
-  - `push` to `main` when paths match `*_rework.md`, `wiki-source/**`, `scripts/build-wiki.sh`, or the workflow file
+  - `push` to `main` when paths match root lab guides (`*_rework.md`), `wiki-source/**`, `scripts/build-wiki.sh`, `.gitignore` (if wiki-related), or the workflow file
   - `workflow_dispatch` for manual republish
 - **Jobs:**
   1. Checkout repo
