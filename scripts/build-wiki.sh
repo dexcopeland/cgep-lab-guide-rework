@@ -46,27 +46,6 @@ rewrite_lab_page() {
       -e 's|\[([^]]+)\]\(\.\./getting-started/repo-structure\.md\)|[[Getting-Started]]|g' \
       "$src"
   } > "$dest"
-
-  # Light curated glossary linking: first occurrence only of selected terms.
-  # Use plain-word boundaries; skip if already wiki-linked.
-  local terms=(
-    "OSCAL|OSCAL"
-    "Open Policy Agent|OPA-(Open-Policy-Agent)"
-    "Policy as Code|Policy-as-Code"
-    "Conftest|Conftest"
-    "compliance-trestle|compliance-trestle"
-    "Object Lock|Object-Lock"
-    "CloudTrail|CloudTrail"
-    "Security Hub|Security-Hub"
-  )
-  local term anchor
-  for pair in "${terms[@]}"; do
-    term="${pair%%|*}"
-    anchor="${pair##*|}"
-    # Only rewrite the first bare occurrence not already inside [[...]]
-    perl -i -0pe 's/(?<!\[\[)\b\Q'"$term"'\E\b/[[Glossary#'"$anchor"'|'"$term"']]/ if !$done++' "$dest" \
-      || true
-  done
 }
 
 for entry in "${LAB_MAP[@]}"; do

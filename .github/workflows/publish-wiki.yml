@@ -1,5 +1,5 @@
-# One-time setup: enable the repo Wiki in GitHub Settings → General → Features,
-# then run this workflow once (workflow_dispatch) to initialize the wiki remote.
+# One-time setup: create any starter page in the Wiki UI so *.wiki.git exists,
+# then run this workflow (workflow_dispatch) or push to main to publish.
 name: Publish wiki
 
 on:
