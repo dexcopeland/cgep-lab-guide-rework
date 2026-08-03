@@ -34,7 +34,8 @@ jobs:
           ./scripts/test-build-wiki.sh
 
       - name: Publish to GitHub Wiki
-        uses: Andrew-Chen-Wang/github-wiki-action@v5
+        # Pin to immutable SHA (v5.0.6); do not use a floating @v5 tag with contents:write
+        uses: Andrew-Chen-Wang/github-wiki-action@1bbb4280446f9630e8e21a18012cbacf3b0f992e
         with:
           path: .wiki-build
           strategy: clone

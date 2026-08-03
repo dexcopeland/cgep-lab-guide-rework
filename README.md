@@ -25,7 +25,7 @@ Do **not** edit lab pages in the Wiki UI — they are regenerated and overwritte
 
 On push to `main` (lab guides, `wiki-source/`, or build scripts), the
 `Publish wiki` GitHub Action builds `.wiki-build/` and syncs it with
-`Andrew-Chen-Wang/github-wiki-action@v5`.
+`Andrew-Chen-Wang/github-wiki-action` pinned to commit `1bbb428` (v5.0.6).
 
 You can also run the workflow manually via **Actions → Publish wiki → Run workflow**.
 
