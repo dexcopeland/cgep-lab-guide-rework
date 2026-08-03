@@ -1,0 +1,42 @@
+# One-time setup: enable the repo Wiki in GitHub Settings → General → Features,
+# then run this workflow once (workflow_dispatch) to initialize the wiki remote.
+name: Publish wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*_rework.md"
+      - "wiki-source/**"
+      - "scripts/build-wiki.sh"
+      - "scripts/test-build-wiki.sh"
+      - ".github/workflows/publish-wiki.yml"
+      - ".gitignore"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build wiki staging directory
+        run: |
+          chmod +x scripts/build-wiki.sh scripts/test-build-wiki.sh
+          ./scripts/test-build-wiki.sh
+
+      - name: Publish to GitHub Wiki
+        uses: Andrew-Chen-Wang/github-wiki-action@v5
+        with:
+          path: .wiki-build
+          strategy: clone
+          disable-empty-commits: true
+          # preprocess true is fine; pages already use [[Wiki Links]]
