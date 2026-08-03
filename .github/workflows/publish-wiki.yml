@@ -26,7 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        # Pin to immutable SHA (v4.4.0); avoid floating @v4 with contents:write
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Build wiki staging directory
         run: |
