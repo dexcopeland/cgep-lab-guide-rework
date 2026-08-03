@@ -1,0 +1,44 @@
+# One-time setup: create any starter page in the Wiki UI so *.wiki.git exists,
+# then run this workflow (workflow_dispatch) or push to main to publish.
+name: Publish wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*_rework.md"
+      - "wiki-source/**"
+      - "scripts/build-wiki.sh"
+      - "scripts/test-build-wiki.sh"
+      - ".github/workflows/publish-wiki.yml"
+      - ".gitignore"
+  workflow_dispatch:
+
+concurrency:
+  group: publish-wiki
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # Pin to immutable SHA (v4.4.0); avoid floating @v4 with contents:write
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Build wiki staging directory
+        run: |
+          chmod +x scripts/build-wiki.sh scripts/test-build-wiki.sh
+          ./scripts/test-build-wiki.sh
+
+      - name: Publish to GitHub Wiki
+        # Pin to immutable SHA (v5.0.6); do not use a floating @v5 tag with contents:write
+        uses: Andrew-Chen-Wang/github-wiki-action@1bbb4280446f9630e8e21a18012cbacf3b0f992e
+        with:
+          path: .wiki-build
+          strategy: clone
+          disable-empty-commits: true
+          # preprocess true is fine; pages already use [[Wiki Links]]
