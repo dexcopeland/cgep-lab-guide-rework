@@ -39,22 +39,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          wiki_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.wiki.git"
+          host="${GITHUB_SERVER_URL#https://}"
+          wiki_url="https://x-access-token:${GH_TOKEN}@${host}/${GITHUB_REPOSITORY}.wiki.git"
           if ! git ls-remote "$wiki_url" HEAD >/dev/null 2>&1; then
-            cat <<EOF >&2
-          error: GitHub Wiki backend is not initialized yet.
-
-          The build succeeded, but publish needs ${GITHUB_REPOSITORY}.wiki.git,
-          which GitHub only creates after the first Wiki page exists.
-
-          Fix (one-time):
-            1. Open ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/wiki
-            2. Create any starter page (title can be Home)
-            3. Re-run this workflow (Actions → Publish wiki → Run workflow)
-          EOF
+            echo "error: GitHub Wiki backend is not initialized yet." >&2
+            echo >&2
+            echo "The build succeeded, but publish needs ${GITHUB_REPOSITORY}.wiki.git," >&2
+            echo "which GitHub only creates after the first Wiki page exists." >&2
+            echo >&2
+            echo "Fix (one-time):" >&2
+            echo "  1. Open ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/wiki" >&2
+            echo "  2. Create any starter page (title can be Home)" >&2
+            echo "  3. Re-run this workflow (Actions → Publish wiki → Run workflow)" >&2
             exit 1
           fi
-          echo "Wiki remote is reachable: $wiki_url"
+          echo "Wiki remote is reachable: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.wiki.git"
 
       - name: Publish to GitHub Wiki
         # Pin to immutable SHA (v5.0.6); do not use a floating @v5 tag with contents:write
