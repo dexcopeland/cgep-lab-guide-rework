@@ -48,4 +48,12 @@ grep -q 'do not edit this page in the Wiki UI' "$BUILD/Lab-2.3-First-Compliant-R
 grep -qi 'glossary' "$BUILD/Glossary.md" \
   || { echo "FAIL: Glossary.md looks empty/wrong"; exit 1; }
 
+# GitHub/Gollum pipe links are [[Label|Page]], not MediaWiki [[Page|Label]]
+grep -q '\[\[2.3 First Compliant Resource|Lab-2.3-First-Compliant-Resource\]\]' "$BUILD/_Sidebar.md" \
+  || { echo "FAIL: sidebar must use Gollum [[Label|Page]] order"; exit 1; }
+if grep -q '\[\[Lab-2.3-First-Compliant-Resource|' "$BUILD/_Sidebar.md"; then
+  echo "FAIL: sidebar still uses MediaWiki [[Page|Label]] order"
+  exit 1
+fi
+
 echo "PASS: wiki build smoke checks"
