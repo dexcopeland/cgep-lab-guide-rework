@@ -73,10 +73,10 @@ If any command isn't found, the tool either didn't install or isn't on your PATH
 
 Terraform doesn't log into AWS by itself. It borrows credentials from the AWS CLI. You need a working CLI profile before Terraform will do anything.
 
-- If your sandbox uses a plain access key, run `aws configure` and paste in your key, secret, and default region (`us-east-1` for this lab).
+- If your sandbox uses a plain access key, run `aws configure` and **paste in your key, secret, and default region (`us-east-1` for this lab).**
 - If your sandbox uses AWS SSO (also called IAM Identity Center), run `aws configure sso` and follow the browser prompts.
 
-Commands in this guide (and later labs) use `--profile default` so you can paste them as-is if you kept the usual AWS CLI profile name. **If you named your profile something else during `aws configure` or `aws configure sso`, replace `default` with that name** wherever you see `--profile default`.
+Commands in this guide (and later labs) use `--profile default` so you can paste them as-is if you kept the usual AWS CLI profile name. **If you named your profile something else during `aws configure` or `aws configure sso`, replace `default` with that name wherever you see `--profile default`.**
 
 Confirm the CLI can reach your account:
 
@@ -195,7 +195,9 @@ git add .
 git commit -m "Scaffold cgep-labs repo structure"
 ```
 
-Then create an empty repository named `cgep-labs` on GitHub (don't let GitHub add a README or .gitignore, since you already have them), and connect it:
+Then create an empty repository named `cgep-labs` on GitHub (don't let GitHub add a README or .gitignore, since you already have them), and connect it.
+
+**Replace `<your-username>` with your GitHub username.**
 
 ```bash
 git remote add origin https://github.com/<your-username>/cgep-labs.git

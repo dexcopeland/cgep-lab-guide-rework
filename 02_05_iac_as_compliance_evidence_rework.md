@@ -10,7 +10,7 @@ If this is your first lab, set up [your tools](../getting-started/tools.md) and 
 
 This lab is on AWS, so you need:
 
-- A working **AWS CLI** profile. Commands below use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
+- A working **AWS CLI** profile. Commands below use `--profile default`. **If you named your profile something else in Lab 2.3, replace `default` with that name.**
 - `sha256sum` or `shasum` on your PATH. Git Bash ships `sha256sum`; macOS ships `shasum`. The script handles either.
 - Terraform `>= 1.6`.
 - Optional, for the signing step at the end: **Cosign**, from https://docs.sigstore.dev/cosign/system_config/installation/
