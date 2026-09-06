@@ -194,7 +194,10 @@ resource "google_compute_firewall" "open_ssh" {
   network       = google_compute_network.demo.name
   direction     = "INGRESS"
   source_ranges = ["0.0.0.0/0"]
-  allow { protocol = "tcp", ports = ["22"] }
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
 }
 ```
 
@@ -569,6 +572,7 @@ There's nothing to tear down. The fixture is plan-only; you never applied it, so
 - **A bucket you expected to flag passes.** Module-wrapped resources live under `child_modules[]`, not `root_module.resources`. The rules here recurse into both; if you write your own, do the same or you'll miss every module resource.
 - **A CMEK bucket fails SC-28.** At plan time the key ID is "known after apply" and missing from the JSON. Don't require a populated key string; require the block to exist. The `has_cmek` predicate already does this.
 - **`required - provided` throws a type error.** Both sides must be sets. `provided_labels` returns a set comprehension for exactly this reason.
+- **`Invalid single-argument block definition`** on the firewall `allow` block: Terraform allows only one argument in a single-line nested block. Write `allow` as a multi-line block with `protocol` and `ports` on separate lines.
 
 ## How this feeds the rest of the course
 
