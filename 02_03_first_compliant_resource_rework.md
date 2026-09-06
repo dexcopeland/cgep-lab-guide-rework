@@ -105,10 +105,10 @@ If any command isn't found, the tool either didn't install or isn't on your PATH
 
 Terraform doesn't log into AWS by itself. It borrows credentials from the AWS CLI. You need a working CLI profile before Terraform will do anything.
 
-- If your sandbox uses a plain access key, run `aws configure` and paste in your key, secret, and default region (`us-east-1` for this lab).
+- If your sandbox uses a plain access key, run `aws configure` and **paste in your key, secret, and default region (`us-east-1` for this lab).**
 - If your sandbox uses AWS SSO (also called IAM Identity Center), run `aws configure sso` and follow the browser prompts.
 
-Commands in this guide (and later labs) use `--profile default` so you can paste them as-is if you kept the usual AWS CLI profile name. **If you named your profile something else during `aws configure` or `aws configure sso`, replace `default` with that name** wherever you see `--profile default`.
+Commands in this guide (and later labs) use `--profile default` so you can paste them as-is if you kept the usual AWS CLI profile name. **If you named your profile something else during `aws configure` or `aws configure sso`, replace `default` with that name wherever you see `--profile default`.**
 
 Confirm the CLI can reach your account:
 
@@ -227,7 +227,9 @@ git add .
 git commit -m "Scaffold cgep-labs repo structure"
 ```
 
-Then create an empty repository named `cgep-labs` on GitHub (don't let GitHub add a README or .gitignore, since you already have them), and connect it:
+Then create an empty repository named `cgep-labs` on GitHub (don't let GitHub add a README or .gitignore, since you already have them), and connect it.
+
+**Replace `<your-username>` with your GitHub username.**
 
 ```bash
 git remote add origin https://github.com/<your-username>/cgep-labs.git
@@ -481,7 +483,7 @@ These three Terraform commands are the core loop you'll run for the rest of the 
 - `terraform plan` works out exactly what it would create, without creating anything. The `-out=tfplan` saves that plan to a file.
 - `terraform apply` builds it. Passing the saved `tfplan` means it builds precisely what you just reviewed, no surprises.
 
-Two of those steps need input from you. Look back at `variables.tf`: `project_name` and `environment` have no `default`, on purpose. They're the values stitched into your bucket names and compliance tags, so Terraform makes you choose them.
+**Two of those steps need input from you.** Look back at `variables.tf`: `project_name` and `environment` have no `default`, on purpose. They're the values stitched into your bucket names and compliance tags, so Terraform makes you choose them.
 
 If your sandbox uses AWS SSO, export your credentials first so Terraform's AWS provider can use them (the provider doesn't always read SSO config the way the CLI does):
 
@@ -498,7 +500,7 @@ terraform plan -out=tfplan
 terraform apply -auto-approve tfplan
 ```
 
-> **Heads up: `plan` will stop and ask you for two values.** Because `project_name` and `environment` have no defaults, Terraform prompts for each one by name before it finishes the plan. Read the label on each prompt and type the matching value — `cgep-lab` for `project_name`, `dev` for `environment`. Don't go by order; Terraform asks by what's missing, not by how you defined them. `environment` is validated, so it has to be `dev`, `staging`, or `prod`. Those two values are exactly what make your bucket come out as `cgep-lab-dev-data-<random>`, the expected output below. (`apply` reuses the saved `tfplan`, so it won't ask again.)
+> **Heads up: `plan` will stop and ask you for two values.** Because `project_name` and `environment` have no defaults, Terraform prompts for each one by name before it finishes the plan. **Read the label on each prompt and type the matching value — `cgep-lab` for `project_name`, `dev` for `environment`.** Don't go by order; Terraform asks by what's missing, not by how you defined them. `environment` is validated, so it has to be `dev`, `staging`, or `prod`. Those two values are exactly what make your bucket come out as `cgep-lab-dev-data-<random>`, the expected output below. (`apply` reuses the saved `tfplan`, so it won't ask again.)
 
 If you'd rather not be prompted, pass the same values as flags instead and Terraform runs straight through:
 
@@ -556,7 +558,7 @@ That file is machine-readable compliance evidence. It's the thing you hand over 
 
 ## Verify it from the outside
 
-The evidence above comes from Terraform's own view of the world. It's worth confirming the same facts by asking AWS directly, the way an auditor's tool would. Substitute your bucket name:
+The evidence above comes from Terraform's own view of the world. It's worth confirming the same facts by asking AWS directly, the way an auditor's tool would. **Substitute your bucket name:**
 
 ```bash
 BUCKET=$(terraform output -raw bucket_name)

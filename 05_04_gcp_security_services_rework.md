@@ -15,7 +15,7 @@ You need:
 - `gcloud` authenticated both ways: `gcloud auth login` and `gcloud auth application-default login` (Terraform reads the second).
 - Terraform `>= 1.6`.
 
-Substitute your project ID for `your-gcp-project` and your GitHub repo (`<your-github-org>/cgep-labs`, or whichever repo will assume the WIF identity) wherever those placeholders appear. This lab is self-contained; it deploys its own baseline and depends on no earlier lab's live resources.
+**Substitute your project ID for `your-gcp-project` and your GitHub repo (`<your-github-org>/cgep-labs`, or whichever repo will assume the WIF identity) wherever those placeholders appear.** This lab is self-contained; it deploys its own baseline and depends on no earlier lab's live resources.
 
 ## Time and cost
 
@@ -149,7 +149,7 @@ resource "google_org_policy_policy" "require_oslogin" {
 
 ### Step 2: Workload Identity Federation
 
-Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Open **`terraform/baselines/gcp/wif.tf`**. Notice both the condition and the IAM binding read `var.github_repo` — set that once at apply time and you don't have to hunt for hardcoded repo strings:
+Pool, provider, service account, binding. The `attribute_condition` is the line that matters most. Open **`terraform/baselines/gcp/wif.tf`**. Notice both the condition and the IAM binding read `var.github_repo` — **set that once at apply time** and you don't have to hunt for hardcoded repo strings:
 
 ```hcl
 # terraform/baselines/gcp/wif.tf
@@ -204,9 +204,9 @@ output "workload_identity_provider" {
 }
 ```
 
-> **Never loosen the condition.** `var.github_repo` must be your real `OWNER/REPO` (for lab work, your `cgep-labs` fork or the capstone repo you'll call from CI). Without a tight condition, *any* GitHub repository on the public internet could present a token and impersonate your service account. This single line is the GCP equivalent of the scoped `sub` you set in the AWS OIDC trust back in Lab 4.3.
+> **Never loosen the condition.** **`var.github_repo` must be your real `OWNER/REPO`** (for lab work, your `cgep-labs` fork or the capstone repo you'll call from CI). Without a tight condition, *any* GitHub repository on the public internet could present a token and impersonate your service account. This single line is the GCP equivalent of the scoped `sub` you set in the AWS OIDC trust back in Lab 4.3.
 
-A workflow then authenticates with no key on disk. After you apply, feed it the outputs rather than hand-building the resource names:
+A workflow then authenticates with no key on disk. **After you apply, feed it the outputs rather than hand-building the resource names** (do not leave `PROJECT_NUMBER` or `your-gcp-project` as-is):
 
 ```yaml
 permissions:
@@ -259,7 +259,9 @@ resource "google_project_iam_audit_config" "iam" {
 
 ### Step 4: Apply once, then test Org Policy enforcement
 
-With `org_policy.tf`, `wif.tf`, and `audit_logs.tf` in place, apply the whole baseline. Refresh Application Default Credentials first if Terraform has started failing auth:
+With `org_policy.tf`, `wif.tf`, and `audit_logs.tf` in place, apply the whole baseline. Refresh Application Default Credentials first if Terraform has started failing auth.
+
+**Replace `your-gcp-project` with your GCP project ID and `<your-github-org>` with your GitHub org or username.**
 
 ```bash
 # from terraform/baselines/gcp
@@ -272,7 +274,9 @@ terraform apply -auto-approve \
 SA_EMAIL=$(terraform output -raw wif_service_account_email)
 ```
 
-Give Org Policy a few minutes to propagate, then deliberately try to create a key on the service account you just created:
+Give Org Policy a few minutes to propagate, then deliberately try to create a key on the service account you just created.
+
+**Replace `your-gcp-project` with your GCP project ID.**
 
 ```bash
 gcloud iam service-accounts keys create /tmp/key.json \
@@ -289,7 +293,9 @@ constraint iam.disableServiceAccountKeyCreation
 
 Sit with this for a moment, because it's the whole point of the lab. The control didn't surface three hours later as a finding to triage. The forbidden action simply did not happen. That refusal at the API is the strongest layer in defense-in-depth: there's nothing to remediate because there's nothing to remediate.
 
-Optional: if you already have a GCS bucket in the project, list it and confirm a Data Access log shows up (delivery can take ~30 seconds):
+Optional: if you already have a GCS bucket in the project, list it and confirm a Data Access log shows up (delivery can take ~30 seconds).
+
+**Replace `your-test-bucket` with a bucket you already have in the project.**
 
 ```bash
 gcloud storage ls gs://your-test-bucket
@@ -300,7 +306,9 @@ gcloud logging read 'protoPayload.serviceName="storage.googleapis.com" AND
 
 ### Step 5: Security Command Center (only if you have an Org)
 
-If your project sits in an Organization with Security Command Center on, findings flow in automatically. SCC Standard is free at the org level. This lab doesn't provision it (that needs org admin), but if you have it, dump findings as evidence:
+If your project sits in an Organization with Security Command Center on, findings flow in automatically. SCC Standard is free at the org level. This lab doesn't provision it (that needs org admin), but if you have it, dump findings as evidence.
+
+**Replace `ORG_ID` with your GCP organization ID.**
 
 ```bash
 gcloud scc findings list ORG_ID --source=- --format=json > ../../../evidence/lab-5-4/scc-findings.json
@@ -309,6 +317,8 @@ gcloud scc findings list ORG_ID --source=- --format=json > ../../../evidence/lab
 For a standalone project with no Org, SCC isn't available, and the Org Policy enforcements above are your equivalent preventive layer.
 
 ## Verification
+
+**Replace `your-gcp-project` with your GCP project ID.**
 
 ```bash
 # still inside terraform/baselines/gcp
@@ -344,6 +354,8 @@ git push
 
 ## Cleanup
 
+**Replace `your-gcp-project` with your GCP project ID and `<your-github-org>` with your GitHub org or username.**
+
 ```bash
 cd terraform/baselines/gcp
 terraform destroy -auto-approve \
@@ -367,7 +379,7 @@ Two things to know:
 
 - **Org Policy propagation latency.** First-apply changes can take 5 to 10 minutes. A forbidden action attempted immediately after apply may briefly slip through; wait, then test.
 - **`PERMISSION_DENIED` creating the WIF provider.** You need `roles/iam.workloadIdentityPoolAdmin`, which `Owner` alone doesn't include.
-- **WIF condition mismatch.** `assertion.repository` is the literal `OWNER/REPO`. Case, spelling, and the slash all matter. An opaque `PERMISSION_DENIED` from `auth@v2` usually means the condition doesn't match your repo.
+- **WIF condition mismatch.** **`assertion.repository` is the literal `OWNER/REPO`.** Case, spelling, and the slash all matter. An opaque `PERMISSION_DENIED` from `auth@v2` usually means the condition doesn't match your repo.
 - **Data Access log cost.** A busy project can ingest gigabytes a day. Start with `storage.googleapis.com` only before enabling KMS and IAM.
 - **`policySpec is not supported`.** Enable the v2 Org Policy API: `gcloud services enable orgpolicy.googleapis.com`.
 

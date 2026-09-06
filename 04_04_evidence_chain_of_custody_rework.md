@@ -14,7 +14,7 @@ You need:
 - Your Lab 4.3 workflow (`grc-gate.yml`) committed and working.
 - The Lab 2.5 vault. On a fresh day it was destroyed, so redeploy it in Step 0 below.
 
-> Commands below use `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+> Commands below use `--profile default`. **If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.**
 
 > **Hashing tools differ by OS.** macOS ships `shasum -a 256`; Git Bash and Ubuntu (including GitHub Actions runners) ship `sha256sum`. The workflow and verify script below detect whichever is available, the same way Lab 2.5's `capture-evidence.sh` does.
 
@@ -95,7 +95,9 @@ ls -la .github/workflows/grc-gate.yml scripts/verify-evidence.sh evidence/lab-4-
 
 ### Step 0: Redeploy the vault
 
-On a fresh day your Lab 2.5 vault is gone, so stand it back up and record its name:
+On a fresh day your Lab 2.5 vault is gone, so stand it back up and record its name.
+
+**Replace `<your-github-org>` with your GitHub org or username in the `gh variable set` command.**
 
 ```bash
 # from the repo root
@@ -347,7 +349,7 @@ Don't clean the vault on purpose; the point of retention is that evidence outliv
 ## Troubleshooting
 
 - **`cosign sign-blob: failed to get OIDC token` in CI.** The job needs `permissions: id-token: write`. Without it Sigstore can't issue a certificate.
-- **`cosign verify-blob` fails on certificate identity.** The script uses a permissive `--certificate-identity-regexp '.*'`. For stricter checks, replace it with the exact workflow subject, for example `^https://github.com/OWNER/REPO/.github/workflows/grc-gate.yml@refs/heads/main$`.
+- **`cosign verify-blob` fails on certificate identity.** The script uses a permissive `--certificate-identity-regexp '.*'`. **For stricter checks, replace it with the exact workflow subject, for example `^https://github.com/OWNER/REPO/.github/workflows/grc-gate.yml@refs/heads/main$`.**
 - **Rekor lag.** The public transparency log can trail the signing call by about a second. Verifying microseconds after signing can miss the entry. CI naturally waits; this only bites on a laptop loop.
 - **403 on the second upload.** Object Lock blocks overwriting an existing key. Each run lands under a unique `runs/<run_id>` prefix, so a fresh run avoids this; don't reuse a run ID.
 - **`Need sha256sum or shasum`.** Neither hashing tool is on your PATH. Git Bash and Ubuntu include `sha256sum`; macOS includes `shasum`. Confirm with `command -v sha256sum` or `command -v shasum`.

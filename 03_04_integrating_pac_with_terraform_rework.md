@@ -87,7 +87,7 @@ opa test -v policies/    # expect 8/8 PASS
 
 You don't need the Lab 2.3 bucket to be live. `terraform plan` computes what *would* be created, so a plan works even with nothing deployed. It does need AWS credentials to check current state, but it applies nothing and costs nothing.
 
-> Commands below use `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+> Commands below use `--profile default`. **If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.**
 
 ```bash
 # from the repo root

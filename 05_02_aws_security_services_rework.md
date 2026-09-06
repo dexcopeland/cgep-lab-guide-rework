@@ -8,7 +8,7 @@ For the GRC folks, these three services are where "continuous monitoring" stops 
 
 If this is your first lab, set up [your tools](../getting-started/tools.md) and [your repo](../getting-started/repo-structure.md) first.
 
-You need an AWS account where you have admin or near-admin rights, and Terraform `>= 1.6`. Check whether Security Hub is already on before you start, so you don't disturb an existing setup: `aws securityhub describe-hub --profile default`. Commands in this lab use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
+You need an AWS account where you have admin or near-admin rights, and Terraform `>= 1.6`. Check whether Security Hub is already on before you start, so you don't disturb an existing setup: `aws securityhub describe-hub --profile default`. Commands in this lab use `--profile default`. **If you named your profile something else in Lab 2.3, replace `default` with that name.**
 
 This lab is self-contained: it deploys its own baseline and doesn't depend on any earlier lab's live resources.
 
@@ -344,7 +344,7 @@ The CloudTrail bucket holds the trail's own log objects; `force_destroy = true` 
 ## Troubleshooting
 
 - **`InsufficientS3BucketPolicyException` on CloudTrail.** The bucket policy is missing the `aws:SourceArn` condition. Both statements above include it; keep them if you adapt the policy.
-- **`ResourceConflictException: Account is already subscribed to Security Hub`.** Something enabled it first. Import with your account ID from `aws sts get-caller-identity` and re-apply.
+- **`ResourceConflictException: Account is already subscribed to Security Hub`.** Something enabled it first. **Import with your account ID from `aws sts get-caller-identity` and re-apply.**
 - **`explicit deny in a service control policy` for Config.** Your account is org-managed and Config is centralized. Leave Config out; the Security Hub "Config should be enabled" finding is your evidence of the gap.
 - **No findings after 30 minutes.** The first wave is batched. Confirm the subscriptions applied with `aws securityhub get-enabled-standards`.
 - **Config recorder name conflict.** Only one recorder per region. Delete the existing one before re-applying.

@@ -19,7 +19,7 @@ Two tools run *inside* the workflow on GitHub's servers, so you don't install th
 - **Conftest** (you already know it from Lab 3.4).
 - **tfsec**, a static scanner that flags risky Terraform. Note that tfsec is now in maintenance mode, folded into **Trivy** (`trivy config` is the supported successor, and the old check IDs carry over). The lab uses tfsec because it's small and pinnable; everything here works the same if you later switch the scan step to Trivy.
 
-You also need an AWS account where you can create an IAM role and an OIDC provider. Commands below use `--profile default`; if you named your profile something else in Lab 2.3, replace `default` with that name.
+You also need an AWS account where you can create an IAM role and an OIDC provider. Commands below use `--profile default`. **If you named your profile something else in Lab 2.3, replace `default` with that name.**
 
 ## Time and cost
 
@@ -126,7 +126,7 @@ resource "aws_iam_role_policy_attachment" "readonly" {
 output "role_arn" { value = aws_iam_role.grc_gate.arn }
 ```
 
-Apply it. Substitute your GitHub org (or username) and the `cgep-labs` repo name:
+Apply it. **Substitute your GitHub org (or username) for `<your-github-org>`, and use your `cgep-labs` repo name.**
 
 ```bash
 # from the repo root
@@ -138,7 +138,9 @@ ROLE_ARN=$(terraform output -raw role_arn)
 cd ../../..
 ```
 
-If the account already has a GitHub OIDC provider (some other automation may have created one), Terraform will error on the duplicate. Import it instead of recreating:
+If the account already has a GitHub OIDC provider (some other automation may have created one), Terraform will error on the duplicate. Import it instead of recreating.
+
+**Replace `<your-github-org>` with your GitHub org or username.**
 
 ```bash
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text --profile default)
@@ -152,7 +154,9 @@ ROLE_ARN=$(terraform output -raw role_arn)
 
 ### Step 2: Tell GitHub which role to assume
 
-Save the role ARN as a repo variable so the workflow can read it. Use the `$ROLE_ARN` you just captured (no copy-paste from the console):
+Save the role ARN as a repo variable so the workflow can read it. Use the `$ROLE_ARN` you just captured (no copy-paste from the console).
+
+**Replace `<your-github-org>` with your GitHub org or username.**
 
 ```bash
 gh variable set AWS_ROLE_ARN \

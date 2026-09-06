@@ -162,7 +162,7 @@ Then add the same shape of `implemented-requirements` block for `ac-3`, `au-3`, 
 
 Read the `sc-28` block slowly, because it's the whole idea in miniature. The `control-id` says which control. The `description` says how the module satisfies it. The `terraform-resource` prop says exactly which line of code does it. And the `links[rel=evidence]` href says where the proof lives. Four facts, machine-readable, and the last one is a live pointer into your vault.
 
-> **Generate UUIDs the right way.** OSCAL requires version-4 UUIDs (the `4` and the `8/9/a/b` in specific positions matter). Don't hand-write them, or `trestle validate` will reject them with a regex error. You already need Python for trestle, so this is fine: `python3 -c "import uuid; print(uuid.uuid4())"`. On macOS/Linux you can also use `uuidgen | tr '[:upper:]' '[:lower:]'`.
+> **Generate UUIDs the right way.** OSCAL requires version-4 UUIDs (the `4` and the `8/9/a/b` in specific positions matter). Don't hand-write them, or `trestle validate` will reject them with a regex error. **Replace every `*-UUID-V4` placeholder in the JSON** (`GENERATED-UUID-V4`, `PARTY-UUID-V4`, `COMPONENT-UUID-V4`, `CI-UUID-V4`, `REQ-UUID-V4`, and later `PROFILE-UUID-V4`) **with a generated value.** You already need Python for trestle, so this is fine: `python3 -c "import uuid; print(uuid.uuid4())"`. On macOS/Linux you can also use `uuidgen | tr '[:upper:]' '[:lower:]'`.
 
 ### Step 4: Validate the component
 
@@ -226,7 +226,7 @@ Trestle fetches the NIST catalog, applies your selection, and writes out a *reso
 
 This is the part that makes OSCAL click. Take the `sc-28` requirement, follow its `links[rel=evidence].href` into the vault, and run the verify script from Lab 4.4:
 
-> The command below uses `--profile default`. If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.
+> The command below uses `--profile default`. **If you named your AWS CLI profile something else in Lab 2.3, replace `default` with that name.**
 
 ```bash
 # from the repo root; reuse VAULT/RUN_ID from Lab 4.4 if you still have them

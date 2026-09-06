@@ -11,7 +11,7 @@ If this is your first lab, work through [Set up your tools](../getting-started/t
 This lab runs on **Google Cloud**, so it needs one tool you haven't used yet and a little auth setup:
 
 - **Google Cloud CLI (`gcloud`)**, the GCP equivalent of the AWS CLI. Install it from the official page: https://cloud.google.com/sdk/docs/install
-- A **GCP project** you control, with billing enabled. Substitute your project ID wherever you see `your-gcp-project`.
+- A **GCP project** you control, with billing enabled. **Substitute your project ID wherever you see `your-gcp-project`.**
 - The Cloud KMS API turned on: `gcloud services enable cloudkms.googleapis.com`
 - Roles `roles/storage.admin` and `roles/cloudkms.admin` on the project.
 - Terraform `>= 1.6` (you already have this from Lab 2.3).
@@ -315,6 +315,8 @@ That `compliance_attestation` is the bridge to later labs. In Chapter 3 a Rego p
 
 Open **`terraform/primitives/compliant-gcs/main.tf`** (scaffolded earlier). This is the whole consumer.
 
+**Replace `your-gcp-project` with your GCP project ID in the provider and module blocks below.**
+
 ```hcl
 # terraform/primitives/compliant-gcs/main.tf
 terraform {
@@ -346,13 +348,15 @@ output "kms_key_id"  { value = module.data_bucket.kms_key_id }
 
 The `source = "../../modules/compliant-gcs-bucket"` is a relative path: from `terraform/primitives/compliant-gcs/`, climb up to `primitives`, up to `terraform`, then into `modules`. Six lines of business config, and the module supplies twenty-plus controls behind them.
 
-> **Use your own bucket suffix.** GCS bucket names are globally unique across all of Google Cloud, not just your project. If everyone in the cohort uses `dev-data-001`, the first person wins and everyone else gets `Error 409: ... already exists`. Change `bucket_name_suffix` to something unique to you, for example `dev-data-<your-initials>`. Use that same personal suffix everywhere this guide shows `dev-data-001`.
+> **Use your own bucket suffix.** GCS bucket names are globally unique across all of Google Cloud, not just your project. If everyone in the cohort uses `dev-data-001`, the first person wins and everyone else gets `Error 409: ... already exists`. **Change `bucket_name_suffix` to something unique to you, for example `dev-data-<your-initials>`, and use that same personal suffix everywhere this guide shows `dev-data-001`.**
 
 > **Module outputs vs consumer outputs.** This catches people out. The module defines an output called `compliance_attestation`. The consumer re-exposes it under a name *it* chooses, here `attestation`. So when you run `terraform output`, you ask for the consumer's name (`attestation`), not the module's internal name. They point at the same value; only the label differs depending on which directory you're standing in.
 
 ### Step 5: Write the prod consumer (plan only)
 
-Open **`terraform/primitives/compliant-gcs-prod/main.tf`**. Paste the same provider block and outputs as the dev consumer, then use this module block — same security floor, different retention:
+Open **`terraform/primitives/compliant-gcs-prod/main.tf`**. Paste the same provider block and outputs as the dev consumer, then use this module block — same security floor, different retention.
+
+**Replace `your-gcp-project` with your GCP project ID, and use your personal `bucket_name_suffix` (for example `prod-data-<your-initials>`).**
 
 ```hcl
 # terraform/primitives/compliant-gcs-prod/main.tf  (module block; also include provider + outputs from Step 4)
@@ -400,7 +404,9 @@ That block is the SC-12 / SC-13 / SC-28 / AC-3 / CM-6 / AU-11 attestation in mac
 
 ### Step 7: The negative test
 
-This is the lesson of the lab, so don't skip it. Open **`terraform/primitives/compliant-gcs-negative/main.tf`**, paste the same provider and outputs as the dev consumer, and use this module block so prod gets a too-short retention. Then run plan from that folder:
+This is the lesson of the lab, so don't skip it. Open **`terraform/primitives/compliant-gcs-negative/main.tf`**, paste the same provider and outputs as the dev consumer, and use this module block so prod gets a too-short retention. Then run plan from that folder.
+
+**Replace `your-gcp-project` with your GCP project ID.**
 
 ```hcl
 # terraform/primitives/compliant-gcs-negative/main.tf  (module block; also include provider + outputs from Step 4)
@@ -454,7 +460,7 @@ gcloud kms keys describe "$KMS_KEY_ID" \
   --format="value(rotationPeriod,nextRotationTime)"
 ```
 
-If `gcloud kms keys describe` on your CLI build rejects the full resource name, split it into the older flags instead: `--location=us-central1 --keyring=<suffix>-ring` and the short key name `<suffix>-key`, using the same personal suffix you set in the consumer.
+If `gcloud kms keys describe` on your CLI build rejects the full resource name, split it into the older flags instead: `--location=us-central1 --keyring=<suffix>-ring` and the short key name `<suffix>-key`, **using the same personal suffix you set in the consumer.**
 
 Expected, abridged:
 
@@ -527,7 +533,7 @@ Two things to know:
 - **Terraform fails to authenticate to GCP.** You probably ran only `gcloud auth login`. Run `gcloud auth application-default login` too; that's the credential Terraform reads.
 - **`KMS_RESOURCE_NOT_FOUND_IN_LOCATION`.** You set `var.location` to a multi-region like `US` and it flowed into the keyring. Keyrings need a single region. The two-variable split in the module is the fix; leave `kms_location` at `us-central1`.
 - **`Permission cloudkms.cryptoKeyEncrypterDecrypter denied` during bucket creation.** The GCS service account needs encrypt/decrypt rights on the key. The `google_kms_crypto_key_iam_member` resource grants it and the bucket's `depends_on` sequences it. Don't remove either.
-- **`Error 409: ... already exists` on the bucket.** Bucket names are globally unique. Change `bucket_name_suffix` to your personal suffix.
+- **`Error 409: ... already exists` on the bucket.** Bucket names are globally unique. **Change `bucket_name_suffix` to your personal suffix.**
 - **`reauth related error (invalid_rapt)`.** Your ADC token expired. Run `gcloud auth application-default login` again; Terraform won't refresh it for you.
 - **Bucket retention can't be shortened.** A retention policy can only be lengthened or removed, never shortened, after creation. Choose carefully, especially for prod.
 

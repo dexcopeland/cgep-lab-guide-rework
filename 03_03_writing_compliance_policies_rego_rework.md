@@ -18,7 +18,7 @@ New tool for this lab:
   - Windows (Git Bash): download `opa_windows_amd64.exe`, rename it `opa.exe`, and put it on your PATH.
   - Confirm with `opa version` (you want `>= 0.60.0`).
 
-Also useful: a GCP project (the fixture creates plan-only GCS buckets and a firewall) and the fact that you've seen `terraform show -json` output back in Lab 2.3 or 2.4. Substitute your project ID for `your-gcp-project`.
+Also useful: a GCP project (the fixture creates plan-only GCS buckets and a firewall) and the fact that you've seen `terraform show -json` output back in Lab 2.3 or 2.4. **Substitute your project ID for `your-gcp-project`.**
 
 ## Time and cost
 
@@ -198,7 +198,9 @@ resource "google_compute_firewall" "open_ssh" {
 }
 ```
 
-Generate the plan JSON. This is the file your policies read. If Application Default Credentials are stale, refresh them with `gcloud auth application-default login` first:
+Generate the plan JSON. This is the file your policies read. If Application Default Credentials are stale, refresh them with `gcloud auth application-default login` first.
+
+**Replace `your-gcp-project` with your GCP project ID.**
 
 ```bash
 # from the repo root
