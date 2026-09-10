@@ -53,23 +53,19 @@ cgep-labs/
 
 ### Scaffold this lab's empty files
 
-Run this once from the repo root (`cgep-labs`). It creates every path in the diagram above as an empty file so the later steps are "open and paste," not "guess where this goes."
+Run this once from the repo root (`cgep-labs`). It creates the script and evidence paths now. Leave the AWS `*_aws.rego` files for later — empty `.rego` files in `policies/` would break the Step 1 health check.
 
 ```bash
 # from the repo root
 mkdir -p policies scripts evidence/lab-3-4
 
-touch \
-  policies/sc28_encryption_aws.rego \
-  policies/ac3_no_public_aws.rego \
-  policies/cm6_required_tags_aws.rego \
-  scripts/policy-gate.sh
+touch scripts/policy-gate.sh
 
 # README may already exist from Lab 3.3; create it only if missing
 touch policies/README.md
 chmod +x scripts/policy-gate.sh
 
-find policies/*_aws.rego scripts/policy-gate.sh evidence/lab-3-4 | sort
+find scripts/policy-gate.sh evidence/lab-3-4 | sort
 ```
 
 ## Step-by-step walkthrough
@@ -116,7 +112,17 @@ This is the lesson. The control ID `SC-28` is portable; the rule `resource.type 
 
 ### Step 4: AWS variant of SC-28
 
-Open **`policies/sc28_encryption_aws.rego`** from the scaffold and paste:
+```bash
+# from the repo root — create the AWS files now that Step 1 has confirmed the 3.3 library
+touch \
+  policies/sc28_encryption_aws.rego \
+  policies/ac3_no_public_aws.rego \
+  policies/cm6_required_tags_aws.rego
+
+find policies/*_aws.rego | sort
+```
+
+Open **`policies/sc28_encryption_aws.rego`** and paste:
 
 ```rego
 # policies/sc28_encryption_aws.rego
@@ -288,6 +294,7 @@ The three `tag_keys` definitions handle three states: tags merged by `default_ta
 ### Step 7: Run the gate against the compliant plan
 
 ```bash
+# from the repo root
 for ns in compliance.sc28_aws compliance.ac3_aws compliance.cm6_aws ; do
   echo "=== $ns ==="
   conftest test --policy policies --namespace $ns terraform/primitives/compliant-s3/plan.json
@@ -310,6 +317,8 @@ Now your Lab 2.3 plan has real AWS coverage. These passes mean something, unlike
 ### Step 8: Break it and watch the gate fire
 
 Copy your Lab 2.3 code to a throwaway folder, remove the encryption resource, regenerate the plan, and run the gate. (Don't commit this folder; it exists only to prove the gate works.)
+
+**Delete the `aws_s3_bucket_server_side_encryption_configuration.primary` resource from `/tmp/broken/main.tf` before regenerating the plan.**
 
 ```bash
 # from the repo root
