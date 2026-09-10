@@ -318,12 +318,15 @@ Now your Lab 2.3 plan has real AWS coverage. These passes mean something, unlike
 
 Copy your Lab 2.3 code to a throwaway folder, remove the encryption resource, regenerate the plan, and run the gate. (Don't commit this folder; it exists only to prove the gate works.)
 
-**Delete the `aws_s3_bucket_server_side_encryption_configuration.primary` resource from `/tmp/broken/main.tf` before regenerating the plan.**
-
 ```bash
 # from the repo root
 mkdir -p /tmp/broken && cp terraform/primitives/compliant-s3/*.tf /tmp/broken/
-# Edit /tmp/broken/main.tf: delete the aws_s3_bucket_server_side_encryption_configuration.primary resource
+```
+
+**Delete the `aws_s3_bucket_server_side_encryption_configuration.primary` resource from `/tmp/broken/main.tf` before regenerating the plan.**
+
+```bash
+# from the repo root — after the edit above
 ( cd /tmp/broken && terraform init \
     && terraform plan -out=tfplan -var="project_name=cgep-lab" -var="environment=dev" \
     && terraform show -json tfplan > plan.json )
