@@ -87,7 +87,14 @@ You probably won't hit these in this lab, but they cause real head-scratching la
 
 ## Mac and Linux users
 
-You already have bash, so there's nothing extra to install for the terminal itself. Install Terraform and the AWS CLI from the official links above. On Mac, Homebrew is the easy path: `brew install terraform awscli`. On Ubuntu, the install pages above include `apt` instructions.
+You already have bash, so there's nothing extra to install for the terminal itself. Install Terraform and the AWS CLI from the official links above. On Mac, Homebrew is the easy path. If you don't have Homebrew yet, install it from https://brew.sh first. Terraform is no longer in Homebrew's default formulas, so install it from HashiCorp's tap, then install the AWS CLI:
+
+```bash
+brew tap hashicorp/tap && brew install hashicorp/tap/terraform
+brew install awscli
+```
+
+On Ubuntu, the install pages above include `apt` instructions.
 
 ## Confirm everything works
 
