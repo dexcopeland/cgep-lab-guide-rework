@@ -51,6 +51,8 @@ OIDC replaces that with something better. GitHub and AWS establish a trust relat
 cgep-labs/
 ├── terraform/primitives/oidc-trust/
 │   └── main.tf                         ← OIDC provider + IAM role
+├── terraform/primitives/compliant-s3/.tfsec/
+│   └── config.yml                      ← excludes the SSE-S3 customer-key check
 ├── .github/workflows/
 │   └── grc-gate.yml                    ← the CI pipeline
 └── evidence/lab-4-3/                   ← filled by the workflow artifact
@@ -66,13 +68,14 @@ Run this once from the repo root (`cgep-labs`). It creates every path in the dia
 
 ```bash
 # from the repo root
-mkdir -p terraform/primitives/oidc-trust .github/workflows evidence/lab-4-3
+mkdir -p terraform/primitives/oidc-trust terraform/primitives/compliant-s3/.tfsec .github/workflows evidence/lab-4-3
 
 touch \
   terraform/primitives/oidc-trust/main.tf \
+  terraform/primitives/compliant-s3/.tfsec/config.yml \
   .github/workflows/grc-gate.yml
 
-find terraform/primitives/oidc-trust .github/workflows evidence/lab-4-3 -type f | sort
+find terraform/primitives/oidc-trust terraform/primitives/compliant-s3/.tfsec .github/workflows evidence/lab-4-3 -type f | sort
 ```
 
 ## Step-by-step walkthrough
@@ -254,6 +257,8 @@ jobs:
         run: |
           # Write SARIF for the artifact, then re-run with a severity floor so
           # tfsec's own exit code is the gate (no JSON parsing required).
+          # tfsec loads $TF_WORKING_DIR/.tfsec/config.yml on its own (Step 4).
+          # That file excludes aws-s3-encryption-customer-key: SSE-S3 accepted until the KMS lab.
           tfsec "$TF_WORKING_DIR" --format sarif --out evidence/lab-4-3/tfsec.sarif || true
           tfsec "$TF_WORKING_DIR" --minimum-severity HIGH
 
@@ -279,12 +284,29 @@ Four choices in this file are worth understanding, because they're the differenc
 - **Tool-native exit codes for the gate.** Conftest exits non-zero on policy failures; `tfsec --minimum-severity HIGH` exits non-zero on high/critical findings. The SARIF/`--output=json` writes are for the evidence artifact; the tools themselves decide pass/fail. No Python (or other JSON parser) is required on the runner.
 - **Pinned versions** on every action and download (`@v4`, `v0.50.0`, `v1.28.14`). Floating tags change under you. For supply-chain safety, the more cautious choice is pinning third-party actions to a specific commit SHA rather than a moving tag.
 
-### Step 4: Open a PR and watch it run
+### Step 4: Exclude the customer-managed-key check
+
+Lab 2.3 encrypts with SSE-S3 (`sse_algorithm = "AES256"`) and leaves customer-managed KMS keys for a later lab. The comment in that `main.tf` says so. tfsec still flags the choice. The check is `aws-s3-encryption-customer-key`, its severity is HIGH, and the gate you wrote in Step 3 fails the run on any HIGH finding. The line in the log is `Bucket does not encrypt data with a customer managed key.` Follow Lab 2.3 exactly and the first pull request goes red on that check, even when the bucket is encrypted and Conftest passes.
+
+**Before you open the pull request, paste a tfsec config that excludes that one check and records why.** The scaffold already created the empty file. Open **`terraform/primitives/compliant-s3/.tfsec/config.yml`** and paste:
+
+```yaml
+# terraform/primitives/compliant-s3/.tfsec/config.yml
+# SSE-S3 accepted until the KMS lab.
+exclude:
+  - aws-s3-encryption-customer-key
+```
+
+That path is the one the gate reads. The workflow scans `terraform/primitives/compliant-s3` (`TF_WORKING_DIR`), and tfsec v1.28.14 loads `.tfsec/config.yml` from the directory you pass it. The `tfsec "$TF_WORKING_DIR"` lines in Step 3 pick this file up on their own.
+
+The ID on the result line is `aws-s3-encryption-customer-key`. This check arrived after tfsec's old `AWS0xx` identifiers, so there is no legacy code to add. The SARIF file labels the same finding `AVD-AWS-0132`. The `exclude` list matches the long ID, `aws-s3-encryption-customer-key`.
+
+### Step 5: Open a PR and watch it run
 
 ```bash
 # from the repo root
 git checkout -b add-grc-gate
-git add .github/workflows/grc-gate.yml policies/ scripts/ terraform/primitives/oidc-trust/
+git add .github/workflows/grc-gate.yml policies/ scripts/ terraform/primitives/oidc-trust/ terraform/primitives/compliant-s3/.tfsec/config.yml
 git commit -m "Add GRC evidence pipeline"
 git push -u origin add-grc-gate
 gh pr create --title "Add GRC evidence pipeline" --body "Reference pipeline."
@@ -297,9 +319,9 @@ gh run list --limit 3
 gh run watch
 ```
 
-If your Lab 2.3 code is compliant, the gates pass and the run goes green. If you point this at deliberately broken infrastructure (next step), you'll see output like `conftest failures: 5`. Either way, an evidence artifact named `grc-evidence-<run-id>` is attached to the run, holding `plan.json`, `conftest-results.json`, `tfsec.sarif`, and the human-readable `plan.txt`.
+Once the Step 4 exclusion is on the branch and your Lab 2.3 code is compliant, the gates pass and the run goes green. If you point this at deliberately broken infrastructure (next step), you'll see output like `conftest failures: 5`. Either way, an evidence artifact named `grc-evidence-<run-id>` is attached to the run, holding `plan.json`, `conftest-results.json`, `tfsec.sarif`, and the human-readable `plan.txt`.
 
-### Step 5: The two-PR demonstration
+### Step 6: The two-PR demonstration
 
 Your capstone wants proof the gate actually blocks bad code, which means your repo history needs one PR that failed and one that passed.
 
@@ -326,12 +348,13 @@ The file is committed. The history is preserved. In Chapter 6, the OSCAL compone
 
 - Opening a PR triggers the workflow, visible in the Actions tab.
 - An artifact `grc-evidence-<run-id>` is attached with `plan.json`, `conftest-results.json`, `tfsec.sarif`, and `plan.txt`.
-- Compliant code ends green; non-compliant code fails with named control IDs in the Conftest output.
+- Compliant code, with the Step 4 tfsec exclusion committed, ends green; non-compliant code fails with named control IDs in the Conftest output.
 
 ## Portfolio submission checklist
 
 - [ ] `terraform/primitives/oidc-trust/` creates the OIDC provider and role.
 - [ ] `.github/workflows/grc-gate.yml` committed.
+- [ ] `terraform/primitives/compliant-s3/.tfsec/config.yml` excludes `aws-s3-encryption-customer-key`, with a comment that SSE-S3 is accepted until the KMS lab.
 - [ ] `vars.AWS_ROLE_ARN` set in repo variables.
 - [ ] At least one workflow run in the Actions tab.
 - [ ] One green PR and one red PR in the repo history (capstone requirement).
@@ -342,7 +365,8 @@ The file is committed. The history is preserved. In Chapter 6, the OSCAL compone
 - **`Permission denied` on terraform init.** The role needs read access to your state backend. `ReadOnlyAccess` covers a plan-only pipeline; a real apply pipeline needs a narrower, write-capable policy.
 - **Conftest finds no policies.** `--policy` is resolved from the step's working directory. The workflow above runs the gate from the repo root and passes `policies`, so don't add a `working-directory` to that step.
 - **OIDC fails even though the role exists.** Almost always the missing `id-token: write` permission. Check that block first.
-- **tfsec noise.** Suppress specific rule IDs in a `.tfsec/config.yml` with a justifying comment rather than scattering `--exclude` flags. If you migrate to Trivy, the same IDs work with a `.trivyignore` file.
+- **`Bucket does not encrypt data with a customer managed key.`** The tfsec step failed `aws-s3-encryption-customer-key`. Lab 2.3 uses SSE-S3 on purpose, and that check is HIGH, so the gate stays red until `terraform/primitives/compliant-s3/.tfsec/config.yml` excludes it (Step 4) and that file is on the branch you pushed. Keep the justification comment in the config. The same ID works in a `.trivyignore` file if you later switch the scan to Trivy.
+- **Reading the failed step.** On the Actions tab, open the run, open the **grc-gate** job, and expand the red step. For this finding, that step is **tfsec scan**. From the terminal, copy the run ID from `gh run list` and run `gh run view <run-id> --log-failed`. That prints the log for the failed steps.
 
 ## Cleanup
 
