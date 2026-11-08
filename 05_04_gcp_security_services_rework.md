@@ -206,23 +206,40 @@ output "workload_identity_provider" {
 
 > **Never loosen the condition.** **`var.github_repo` must be your real `OWNER/REPO`** (for lab work, your `cgep-labs` fork or the capstone repo you'll call from CI). Without a tight condition, *any* GitHub repository on the public internet could present a token and impersonate your service account. This single line is the GCP equivalent of the scoped `sub` you set in the AWS OIDC trust back in Lab 4.3.
 
-A workflow then authenticates with no key on disk. **After you apply, feed it the outputs rather than hand-building the resource names** (do not leave `PROJECT_NUMBER` or `your-gcp-project` as-is):
+A workflow then authenticates with no key on disk. **After you apply, feed it the outputs rather than hand-building the resource names** (do not leave `PROJECT_NUMBER` or `your-gcp-project` as-is).
+
+**This is a new file in `.github/workflows/`, `.github/workflows/gcp-wif-demo.yml`, not part of `ci.yml`. This is the first file in the labs you create yourself rather than getting scaffolded.**
 
 ```yaml
+# .github/workflows/gcp-wif-demo.yml
+name: gcp-wif-demo
+
+on:
+  workflow_dispatch:
+
 permissions:
   id-token: write   # required to mint the OIDC token
   contents: read
 
-steps:
-  - uses: google-github-actions/auth@v2
-    with:
-      # terraform output -raw workload_identity_provider
-      workload_identity_provider: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/providers/github
-      # terraform output -raw wif_service_account_email
-      service_account: cgep-grc-gate-sa@your-gcp-project.iam.gserviceaccount.com
+jobs:
+  wif-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  - run: gcloud storage ls
+      - uses: google-github-actions/auth@v2
+        with:
+          # terraform output -raw workload_identity_provider
+          workload_identity_provider: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions/providers/github
+          # terraform output -raw wif_service_account_email
+          service_account: cgep-grc-gate-sa@your-gcp-project.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - run: gcloud storage ls
 ```
+
+Push the file, then run it from the **Actions** tab: open **gcp-wif-demo**, then **Run workflow**.
 
 The token is minted when the job starts, expires after an hour, and never touches the filesystem. Same posture as the AWS OIDC pattern, different cloud, which is exactly the portability a GRC engineer wants.
 
@@ -347,7 +364,7 @@ Before you commit, open **`terraform/baselines/gcp/README.md`** (scaffolded empt
 
 ```bash
 # from the repo root
-git add terraform/baselines/gcp evidence/lab-5-4
+git add terraform/baselines/gcp evidence/lab-5-4 .github/workflows/gcp-wif-demo.yml
 git commit -m "Lab 5.4: GCP security baseline (org policy, WIF, data access logs)"
 git push
 ```
@@ -371,7 +388,7 @@ Two things to know:
 ## Portfolio submission checklist
 
 - [ ] `terraform/baselines/gcp/` committed (split files or one `main.tf`).
-- [ ] A demo GitHub Actions workflow that authenticates via WIF, with no service-account JSON key anywhere in the repo.
+- [ ] `.github/workflows/gcp-wif-demo.yml` authenticates via WIF, with no service-account JSON key anywhere in the repo.
 - [ ] `evidence/lab-5-4/iam-policy.json` capturing the Data Access logs config.
 - [ ] README notes the "Data Access logs are off by default" lesson.
 
